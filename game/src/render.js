@@ -528,9 +528,10 @@ export function syncScene(view, state, dt) {
     if (!wp) { tag.setVisible(false); return; }
     const z = ZONES.windowPlates[i];
     tag.setVisible(true);
-    // y - 10 sits just below the order card's bottom edge (card ends ~y142)
-    // in the clear gap above the counter, so the tag never hides behind a card.
-    tag.setPosition(z.x + z.w / 2, z.y - 10);
+    // R2: y + 2 puts the tag fully below the order card's bottom edge
+    // (card ends ~y142). y - 10 left the tag's top touching the card edge,
+    // so at a glance the top of READY read as sliced flat by the card.
+    tag.setPosition(z.x + z.w / 2, z.y + 2);
   });
 
   const chopItem = nextChoppable(state) || state.cook.hands.find((h) => h && h.prep === 'chopped');
