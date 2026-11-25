@@ -8,6 +8,12 @@
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
+// Mas Joko keeps one rule above the pass: a plate only leaves when the
+// order card, the pan, and the bell all agree it is ready. His shift runs
+// in three waves — quiet dawn, the lunch rush, and the last hungry hour —
+// and the clock gives him one short evening to turn a full board of orders
+// into a warung that goes dark with every customer fed.
+
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
