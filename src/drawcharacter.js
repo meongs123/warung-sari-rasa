@@ -26,45 +26,59 @@ export function createCook(scene) {
   const shadow = scene.add.ellipse(624, 626, 44, 14, 0x000000, 0.2);
   shadow.setDepth(19);
 
-  const legL = scene.add.rectangle(-7, 8, 10, 22, 0x5c3520);
+  // M3 — true side profile: legs near the body centre, far leg slightly back.
+  const legL = scene.add.rectangle(-3, 8, 9, 22, 0x5c3520);
   legL.setOrigin(0.5, 0);
-  const legR = scene.add.rectangle(7, 8, 10, 22, 0x5c3520);
+  const legR = scene.add.rectangle(4, 8, 9, 22, 0x5c3520);
   legR.setOrigin(0.5, 0);
 
-  const armL = scene.add.rectangle(-15, -4, 8, 22, 0xfff3d6);
+  // M3 — side view arms: both hang at the body's side, not spread wide.
+  // armL = far arm (darker, at the back/shirt), armR = near arm (front edge).
+  const armL = scene.add.rectangle(-6, -8, 7, 22, 0xe8dcc8);
   armL.setOrigin(0.5, 0);
-  const armR = scene.add.rectangle(15, -4, 8, 22, 0xfff3d6);
+  const armR = scene.add.rectangle(11, -8, 8, 22, 0xfff3d6);
   armR.setOrigin(0.5, 0);
 
   const torsoG = scene.add.graphics();
+  // M3 — side-on torso: narrower than the front view (shoulder width unseen).
   torsoG.fillStyle(0xfff3d6, 1);
-  torsoG.fillEllipse(0, 0, 34, 36);
+  torsoG.fillEllipse(0, 0, 24, 36);
+  // Apron edge-on: on the FRONT (facing) side of the torso, not the chest centre.
   torsoG.fillStyle(0x4e7a3a, 1);
-  torsoG.fillRoundedRect(-12, 2, 24, 22, 6);
+  torsoG.fillRoundedRect(-2, 2, 14, 22, 6);
   torsoG.fillStyle(0x3a5c2b, 1);
-  torsoG.fillRect(-12, 2, 24, 4);
+  torsoG.fillRect(-2, 2, 14, 4);
+  // Chili emblem on the apron's side, low on the apron so the arms clear it.
   torsoG.fillStyle(0xc0392b, 1);
-  torsoG.fillEllipse(0, 12, 8, 10);
+  torsoG.fillEllipse(5, 18, 7, 9);
   torsoG.fillStyle(0x3a5c2b, 1);
-  torsoG.fillRect(-1, 2, 2, 6);
+  torsoG.fillRect(4, 13, 2, 5);
 
   const headC = scene.add.container(0, -20);
-  const face = scene.add.ellipse(0, 0, 28, 28, 0xe8b88a);
-  const eyeL = scene.add.ellipse(-5, -1, 3.6, 4.6, 0x2e1f14);
-  eyeL.setVisible(false);
-  const eyeR = scene.add.ellipse(7, -1, 3.6, 4.6, 0x2e1f14);
-  const nose = scene.add.triangle(13, 1, 0, -3, 0, 3, 6, 1, 0xc98a5a);
-  const smile = scene.add.arc(4, 4, 7, 15, 165, false, 0x2e1f14);
+  // M3 — TRUE SIDE PROFILE (facing right; the container flip mirrors it left).
+  // Silhouette: forehead, nose BREAKING the face outline, lips, chin, round back.
+  const faceG = scene.add.graphics();
+  faceG.fillStyle(0xe8b88a, 1);
+  faceG.fillPoints([
+    { x: -6, y: -14 }, { x: 6, y: -13 }, { x: 10, y: -8 }, { x: 11, y: -4 },
+    { x: 12, y: -1 }, { x: 17, y: 2 }, { x: 12, y: 5 }, { x: 11, y: 8 },
+    { x: 9, y: 11 }, { x: 7, y: 13 }, { x: 0, y: 14 }, { x: -8, y: 12 },
+    { x: -13, y: 4 }, { x: -13, y: -6 }, { x: -10, y: -12 },
+  ], true);
+  // ONE eye only, set back from the nose bridge (the far eye is unseen).
+  const eye = scene.add.ellipse(6, -2, 3.6, 4.6, 0x2e1f14);
+  // Profile mouth: a small curve at the front, under the nose.
+  const smile = scene.add.arc(7, 8, 3.5, 15, 165, false, 0x2e1f14);
   smile.setOrigin(0.5, 0.5);
-  const frown = scene.add.arc(4, 9, 7, 195, 345, false, 0x2e1f14);
+  const frown = scene.add.arc(7, 11, 3.5, 195, 345, false, 0x2e1f14);
   frown.setOrigin(0.5, 0.5);
   frown.setVisible(false);
-  const flatMouth = scene.add.rectangle(4, 6, 10, 2, 0x2e1f14);
+  const flatMouth = scene.add.rectangle(7, 8, 7, 2, 0x2e1f14);
   flatMouth.setVisible(false);
-
-  const toque = scene.add.ellipse(0, -13, 30, 18, 0xffffff);
-  const toqueBand = scene.add.rectangle(0, -7, 28, 6, 0xe8e4d8);
-  headC.add([face, eyeL, eyeR, nose, smile, frown, flatMouth, toque, toqueBand]);
+  // Toque in profile: swept back, front edge above the forehead.
+  const toque = scene.add.ellipse(-2, -14, 30, 17, 0xffffff);
+  const toqueBand = scene.add.rectangle(-2, -8, 28, 6, 0xe8e4d8);
+  headC.add([faceG, eye, smile, frown, flatMouth, toque, toqueBand]);
 
   const knifeC = scene.add.container(0, 0);
   const blade = scene.add.rectangle(8, 0, 18, 4, 0xc0c8cc);
@@ -73,10 +87,11 @@ export function createCook(scene) {
   knifeC.setVisible(false);
 
   const carryG = scene.add.graphics();
-  container.add([legL, legR, armL, armR, torsoG, headC, knifeC, carryG]);
+  // Layer order: far arm behind the torso, near arm in front of it (side view).
+  container.add([legL, legR, armL, torsoG, armR, headC, knifeC, carryG]);
   return {
     container, shadow, legL, legR, armL, armR, torsoG, headC,
-    eyeL, eyeR, smile, frown, flatMouth, knifeC, carryG,
+    eye, smile, frown, flatMouth, knifeC, carryG,
     lastHandsKey: '', lastPlateKey: '',
   };
 }
@@ -132,8 +147,8 @@ export function syncCook(cook, state, t) {
   cook.headC.setRotation(headTilt);
 
   const blinking = (t % 3) < 0.1;
-  cook.eyeL.setScale(1, blinking ? 0.15 : 1);
-  cook.eyeR.setScale(1, blinking ? 0.15 : 1);
+  // M3: a single side eye — it blinks, the (unseen) far eye does not exist.
+  cook.eye.setScale(1, blinking ? 0.15 : 1);
   const sad = anim === 'sad';
   const happy = anim === 'celebrate';
   cook.smile.setVisible(!sad);
@@ -144,8 +159,9 @@ export function syncCook(cook, state, t) {
   const chopping = anim === 'chop';
   cook.knifeC.setVisible(chopping);
   if (chopping) {
-    const hx = 15 + Math.sin(armR) * 20;
-    const hy = -4 + Math.cos(armR) * 20;
+    // Knife follows the near arm's hand (pivot 11,-8, the arm's shoulder).
+    const hx = 11 + Math.sin(armR) * 20;
+    const hy = -8 + Math.cos(armR) * 20;
     cook.knifeC.setPosition(hx, hy);
     cook.knifeC.setRotation(armR + Math.PI / 2);
   }
@@ -157,12 +173,12 @@ export function syncCook(cook, state, t) {
     cook.lastPlateKey = plateKey;
     cook.carryG.clear();
     if (c.plate) {
-
-      drawCarriedPlate(cook.carryG, c.plate.dish, 0, -8, 22);
+      // M3: the plate is held in FRONT of the body (facing side), not the centre.
+      drawCarriedPlate(cook.carryG, c.plate.dish, 10, -8, 22);
     } else {
       const held = c.hands.filter(Boolean);
       held.forEach((item, i) => {
-        drawCarriedItem(cook.carryG, item.kind, item.prep, -12 + i * 24, -8, 11);
+        drawCarriedItem(cook.carryG, item.kind, item.prep, 4 + i * 14, -8, 11);
       });
     }
   }

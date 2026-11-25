@@ -76,10 +76,14 @@ export function stageCover(state) {
     picky: null,
   };
 
-  state.windowPlates[0] = { dish: 'mie', items: [], finisher: 'kecap', picky: null };
+  // H1b: the window dish MUST match an open ticket (sate = ticket 1) so the
+  // "RING THE BELL!" callout fires on that ticket's card in the cover.
+  state.windowPlates[0] = { dish: 'sate', items: [], finisher: 'saus', picky: null };
 
+  // Float sits clear of the SAMPAH bin (x 1120) — its wide sub-text used to
+  // overlap the bin at x 1075.
   state.floats.push({
-    x: 1075, y: 590, text: '+Rp 110', sub: 'termasuk tip Rp 25', color: '#F5C542', t: 0.3, life: 1.1,
+    x: 980, y: 590, text: '+Rp 175', sub: 'termasuk tip Rp 35', color: '#F5C542', t: 0.3, life: 1.1,
   });
 
   state.cook.x = 760;
@@ -145,8 +149,9 @@ export function stageServe(state) {
   state.cook.animT = 0.35;
   state.cook.plate = { dish: 'sate', items: [], finisher: 'saus', picky: null };
 
+  // Same bin-clear position as the cover float (x 980, not 1075).
   state.floats.push({
-    x: 1075, y: 590, text: '+Rp 175', sub: 'termasuk tip Rp 35', color: '#F5C542', t: 0.3, life: 1.1,
+    x: 980, y: 590, text: '+Rp 175', sub: 'termasuk tip Rp 35', color: '#F5C542', t: 0.3, life: 1.1,
   });
   return state;
 }
@@ -183,7 +188,12 @@ export function stageSecondAngle(state) {
   state.cook.animT = 0.3;
   state.cook.hands = [null, null];
 
-  state.camera = { x: 500, y: 400, zoom: 1.25 };
+  // F5 (revised): zoom 1.05x + centre (618,343) — the HUD top/bottom bars
+  // cover ~53px of the zoomed world at each edge, so a higher zoom cannot
+  // show the order cards (y 60) AND the cook's feet (y 630) at once
+  // (needs zoom < 1.074). At 1.05x the cards, menu names + prices, pantry
+  // and cook are all whole; the framing is a slight zoom + shift.
+  state.camera = { x: 618, y: 343, zoom: 1.05 };
   return state;
 }
 

@@ -13,7 +13,7 @@ export function buildResults(scene) {
   const c = scene.add.container(0, 0);
   c.setDepth(40);
   c.setVisible(false);
-  const dim = scene.add.rectangle(640, 360, 1280, 720, 0x2e1f14, 0.78);
+  const dim = scene.add.rectangle(640, 360, 1280, 720, 0x2e1f14, 0.92);
   c.add(dim);
   const txt = (x, y, str, size, color, style = 'bold') => {
     const t = scene.add.text(x, y, str, { fontFamily: FONT, fontSize: `${size}px`, fontStyle: style, color });
@@ -39,17 +39,20 @@ export function buildResults(scene) {
 
   const statVals = [];
   const boxG = scene.add.graphics();
+  // Boxes must render BEHIND the stat text: add boxG to the container BEFORE
+  // the loop creates the label/value texts (at 0.85 alpha a box added after
+  // the texts would cover them — the F3 fix exposed this ordering bug).
+  c.add(boxG);
   STAT_DEFS.forEach(([label, key], i) => {
     const x = 320 + (i % 3) * 320;
     const y = 310 + Math.floor(i / 3) * 90;
-    boxG.fillStyle(0xfff3d6, 0.12);
+    boxG.fillStyle(0xfff3d6, 0.85);
     boxG.fillRoundedRect(x - 130, y - 24, 260, 68, 10);
-    txt(x, y, label, 13, '#D8CDB8', 'normal');
-    const v = txt(x, y + 28, '0', 22, '#FFFFFF');
+    txt(x, y, label, 14, '#5C4A33', 'normal');
+    const v = txt(x, y + 28, '0', 22, '#2E1F14');
     statVals.push({ key, text: v });
   });
-  c.add(boxG);
-  txt(640, 448, 'MEDALI', 13, '#D8CDB8', 'normal');
+  txt(640, 448, 'MEDALI', 14, '#FFF3D6', 'normal');
   const medalTexts = [320, 640, 960].map((x) => txt(x, 472, '', 14, '#F5C542'));
   const dishesG = scene.add.graphics();
   c.add(dishesG);
@@ -65,7 +68,7 @@ export function buildResults(scene) {
   c.add(btnG);
   txt(640, 658, 'MAIN LAGI [R]', 22, '#FFFFFF');
   txt(850, 658, 'MENU [ESC]', 20, '#FFF3D6');
-  txt(640, 702, 'R / S = main lagi · ESC = menu', 12, '#B9A98A', 'normal');
+  txt(640, 702, 'R / S = main lagi · ESC = menu', 14, '#D8CDB8', 'normal');
   return { container: c, rankLetter, rankTitle, scoreText, recordText, statVals, medalTexts, dishesG, dishesText, storyText, eventText, lastKey: '', lastDishesKey: '' };
 }
 
@@ -111,5 +114,5 @@ export function syncResults(view, state) {
     view.dishesText.setX(640);
   }
   view.storyText.setText(s.pakBudi ? '★ Pak Budi dilayani — VIP senang!' : (s.story || ''));
-  view.eventText.setText(s.event ? (s.event.cleared ? 'Pak Kumis: PUAS — kritikus takluk!' : s.event.failed ? 'Pak Kumis: GAGAL — kritikus kecewa.' : 'Pak Kumis: tidak datang.') : '');
+  view.eventText.setText(s.event ? (s.event.cleared ? 'Pak Kumis: PUAS — kritikus takluk!' : s.event.failed ? 'Pak Kumis: GAGAL — kritikus kecewa.' : 'Pak Kumis: belum dilayani.') : '');
 }

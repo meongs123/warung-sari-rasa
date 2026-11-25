@@ -15,10 +15,16 @@ export function choppedName(kind) {
 }
 
 export function chopItem(state) {
-  const item = firstHandItem(state);
-  if (!item) return { ok: false, why: 'empty-hands' };
-  if (item.prep !== 'raw') return { ok: false, why: 'already-prepped' };
-  if (!choppableKind(item.kind)) return { ok: false, why: 'not-choppable' };
+  // M2: chop the first choppable RAW item, not the first hand item — a player
+  // who lifts a cooked item first (a natural move) must still be able to chop
+  // the raw item in the other hand.
+  const item = nextChoppable(state);
+  if (!item) {
+    const first = firstHandItem(state);
+    if (!first) return { ok: false, why: 'empty-hands' };
+    if (first.prep !== 'raw') return { ok: false, why: 'already-prepped' };
+    return { ok: false, why: 'not-choppable' };
+  }
   removeFromHand(state, item);
   const chopped = { kind: item.kind, prep: 'chopped' };
   takeIntoHand(state, chopped);

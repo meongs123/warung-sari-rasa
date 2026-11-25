@@ -53,6 +53,8 @@ export const ZONES = {
 
   bin: { x: 1120, y: 575, w: 50, h: 65 },
 
+  docket: { x: 940, y: 492, w: 300, h: 68 },
+
   lane: { x: 16, y: 560, w: 1248, h: 80 },
 
   stationClick: {

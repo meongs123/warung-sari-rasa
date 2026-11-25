@@ -51,6 +51,7 @@ function refuse(why) {
     'wrong-item': 'Bukan bahan pesanan ini',
     'wrong-finisher': 'Bukan pelengkap pesanan ini',
     'already-on-plate': 'Sudah ada di piring',
+    'already-prepped': 'Bahan sudah diproses',
     'no-plate': 'Tidak ada piring yang dirakit',
     'not-ready': 'Piring belum jadi',
     'no-match': 'Tidak ada pesanan yang cocok',
@@ -446,6 +447,9 @@ function handleKeyAction(action) {
   if (action.type === 'confirm') {
     if (state.mode === 'title') startShift();
     else if (state.mode === 'summary') restartShift();
+    // M1: ENTER is advertised as "ENTER = SAJIKAN" — in playing mode it serves
+    // the bell (first occupied window plate), same as clicking the bell.
+    else if (state.mode === 'playing') doServeBell();
     return;
   }
   if (action.type === 'restart') {
