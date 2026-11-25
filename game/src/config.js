@@ -10,11 +10,12 @@ export const CONFIG = {
   burnerCount: 2,
   plateSlots: 2,
   windowPlates: 2, // max finished plates that can sit at the serving window
-  burnGrace: 5, // seconds past done before an item burns (done at cookTime,
+  burnGrace: 8, // seconds past done before an item burns (done at cookTime,
   // burnt at cookTime + burnGrace — the lift window the player must hit).
-  // 5 s (not 3 s): the side view spreads the pantry far from the stove, so
-  // the prompted Route B (place nasi, fetch telur, chop, lift) needs the
-  // wider window — 3 s burned the nasi mid-walk. Still punishes slow play.
+  // 8 s (not 7 s): the combined first-timer case (hesitate 1.5 s AND one
+  // mis-click walk) lifts Route B at 10.1 s — past the 10.0 s bar for a
+  // 1 s margin at grace 7 (burn 11.0). At 8 s it lifts with a 1.9 s
+  // margin (burn 12.0). Still punishes truly slow play.
   comboCap: 2.0, // multiplier cap (reached at combo 5)
   comboStep: 0.25, // +0.25 multiplier per combo level
   // In-shift ramp by elapsed thirds (seconds 0–60, 60–120, 120–180).
