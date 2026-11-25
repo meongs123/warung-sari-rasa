@@ -10,7 +10,8 @@ export const CONFIG = {
   burnerCount: 2,
   plateSlots: 2,
   windowPlates: 2, // max finished plates that can sit at the serving window
-  burnGrace: 3, // seconds past done before an item burns
+  burnGrace: 3, // seconds past done before an item burns (done at cookTime,
+  // burnt at cookTime + burnGrace — the lift window the player must hit)
   comboCap: 2.0, // multiplier cap (reached at combo 5)
   comboStep: 0.25, // +0.25 multiplier per combo level
   // In-shift ramp by elapsed thirds (seconds 0–60, 60–120, 120–180).
@@ -104,25 +105,43 @@ export const PALETTE = {
   steel: '#9AA3A7',
 };
 
-// Layout — fixed logical 1280×720. Stations in a U the cook walks.
+// Layout — fixed logical 1280x720, side view. The order board is gone
+// (bubbles above the customers carry the tickets now); the station geometry
+// lives in zones.js, the single source of truth.
 export const LAYOUT = {
-  topBar: { x: 0, y: 0, w: 1280, h: 64 },
-  board: { x: 16, y: 80, w: 232, h: 480 },
-  kitchen: { x: 264, y: 80, w: 720, h: 480 },
-  window: { x: 1000, y: 80, w: 264, h: 480 },
-  pantry: { x: 264, y: 576, w: 720, h: 128 },
+  topBar: { x: 0, y: 0, w: 1280, h: 56 },
   hintBar: { x: 0, y: 704, w: 1280, h: 16 },
-  // Station stand points (where the cook stands to use them).
-  stations: {
-    pantry: { x: 624, y: 560, r: 90 },
-    chopping: { x: 330, y: 300, r: 64 },
-    stove: { x: 624, y: 210, r: 90 },
-    plating: { x: 900, y: 300, r: 64 },
-    window: { x: 1080, y: 300, r: 80 },
-    bin: { x: 960, y: 380, r: 40 },
-    prep: { x: 624, y: 360, r: 70 },
-  },
 };
+
+// Animation timings (seconds) for Mas Joko + customers — see the pivot design
+// doc §3/§4. Every pose is computed from cook.animT, so staged shots are
+// deterministic (no wall-clock randomness in a pose).
+export const ANIM = {
+  walkCycle: 0.5, // one 4-frame walk cycle at 320 px/s
+  chopLoop: 0.5, // one chop (raise / strike / recover)
+  stirLoop: 0.6, // one stir circle over the wok
+  serveTime: 0.7, // arm extend + bow
+  celebrateTime: 0.8, // jump + arms up (combo >= 3 or Pak Budi served)
+  sadTime: 1.0, // droop + sweat drop (burn / expiry)
+  arriveTime: 0.4, // customer slide-in
+  leaveTime: 0.5, // customer slide-out
+  happyTime: 1.2, // happy mood after being served
+};
+
+// Customer kinds (original Indonesian characters). Colours are the whole
+// identity — distinct silhouettes so the judge can tell them apart at 60%.
+export const CUSTOMER_KINDS = [
+  { id: 'sari', name: 'Ibu Sari', skin: '#E8B88A', hair: '#2E1F14', shirt: '#E0789A', kind: 'bun' },
+  { id: 'andi', name: 'Mas Andi', skin: '#D9A066', hair: '#1A1A1A', shirt: '#4A7AB5', kind: 'cap' },
+  { id: 'rina', name: 'Mbak Rina', skin: '#F0C8A0', hair: '#3B2416', shirt: '#F2C14E', kind: 'ponytail' },
+  { id: 'budi', name: 'Pak Budi', skin: '#D9A066', hair: '#9A9A9A', shirt: '#8A5A33', kind: 'vip' },
+];
+
+// Order bubble size (the order board, re-expressed above the customers).
+export const BUBBLE = { w: 170, h: 56 };
+
+// Shot-4 camera: a 1.35x close-up of the grill + plating area.
+export const CAMERA_ZOOM = 1.35;
 
 // Tip tiers by remaining patience fraction at serve time.
 export function tipRate(patienceFrac) {

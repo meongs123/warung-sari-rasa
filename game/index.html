@@ -32,6 +32,10 @@
   window.addEventListener('resize', fit);
   fit();
 </script>
+<!-- Phaser 4.2.1, vendored locally (game/lib/phaser.min.js) — no CDN, no
+     network. Loaded before the module script so `Phaser` is global when
+     main.js boots the game. -->
+<script src="./lib/phaser.min.js"></script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>

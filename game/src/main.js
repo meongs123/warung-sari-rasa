@@ -1,9 +1,13 @@
-// main.js — startGame(): boot, game loop (fixed timestep), screen stack,
-// wires everything together. Click-to-walk is primary; E/Space interacts with
-// the faced station; 1–3 tickets, Z–N bowls, Q trash, K book, P/Esc pause,
-// M mute. Debug hooks: window.render_game_to_text + window.advanceTime.
+// main.js — startGame(): Phaser boot, game loop (fixed timestep inside the
+// Phaser scene update), screen stack, wires everything together.
+// Click-to-walk is primary; E/Space interacts with the faced station;
+// 1–3 tickets, Z–N bowls, Q trash, K book, P/Esc pause, M mute.
+// Debug hooks: window.render_game_to_text + window.advanceTime.
+// Mechanics (orders / stove / plating / serving / chopping / pantry) are the
+// verified plain-JS modules; Phaser owns the loop, the rendering (render.js)
+// and the input (input.js). The anim driver + customer sync live here.
 
-import { CONFIG } from './config.js';
+import { CONFIG, ANIM, FINISHERS } from './config.js';
 import { createGameState, rampThird, timeLeft, shiftOver, handsFree } from './state.js';
 import { ZONES, inRect } from './zones.js';
 import { createInput, consumeClick, consumePressed, hitTestClick, keyAction } from './input.js';
@@ -14,7 +18,7 @@ import { placeOnPlate, addFinisher, takePlate, trashPlate, refreshPlateDone } fr
 import { serveWindowPlate, placeAtWindow } from './serving.js';
 import { spawnFirstTicket, updateOrders, selectTicket } from './orders.js';
 import { PAK_BUDI_STORY } from './regular.js';
-import { render } from './render.js';
+import { buildScene, syncScene } from './render.js';
 import { findPath, simplifyPath } from './pathfind.js';
 import { updateFeedback, feedback, addFloat, addShake, spawnSteam, spawnParticles } from './feedback.js';
 import {
@@ -22,15 +26,13 @@ import {
   playJingle, playRefuse, setSizzle, setMuted, isMuted, resumeAudio,
 } from './audio.js';
 import { stageShot } from './shots.js';
-import { FINISHERS } from './config.js';
-
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
 
 let state = createGameState(7);
-let input = createInput(canvas);
-let lastTime = 0;
+let input = null; // created in the scene create() (needs the Phaser scene)
+let view = null; // the scene view from buildScene()
+let game = null;
 let acc = 0;
+let frameCount = 0;
 const STEP = 1 / 60;
 
 function showToast(text, seconds = 2) {
@@ -78,6 +80,8 @@ function doTakeBowl(index) {
 function doChop() {
   const res = chopItem(state);
   if (!res.ok) return refuse(res.why);
+  state.cook.anim = 'chop';
+  state.cook.animT = 0;
   const c = ZONES.stationClick.chopping;
   feedback(state, 'medium', c.x + c.w / 2, c.y + c.h / 2, { colors: ['#5E9A4A', '#7AB85E', '#FFF3D6'] });
   playChop();
@@ -116,6 +120,8 @@ function doStove(burnerIndex = -1) {
   }
   const res = placeOnBurner(state, burnerIndex);
   if (!res.ok) return refuse(res.why);
+  state.cook.anim = 'stir';
+  state.cook.animT = 0;
   playTake();
   advancePrompt('cook');
 }
@@ -131,6 +137,8 @@ function doPlate(plateIndex = -1) {
     feedback(state, 'small', z.x + z.w / 2, z.y + z.h / 2, { colors: ['#FFF3D6', '#F5C542'] });
     playPlok();
     if (res.dish) {
+      state.cook.anim = 'celebrate';
+      state.cook.animT = 0;
       playDing();
       showToast('Hidangan jadi! Ambil piringnya.');
     }
@@ -156,6 +164,8 @@ function doFinisher(finisherIndex) {
   feedback(state, 'small', z.x + z.w / 2, z.y + z.h / 2, { colors: ['#FFF3D6', '#F5C542'] });
   playPlok();
   if (res.dish) {
+    state.cook.anim = 'celebrate';
+    state.cook.animT = 0;
     playDing();
     showToast('Hidangan jadi! Ambil piringnya.');
   }
@@ -190,6 +200,8 @@ function doServeWindowPlate(slot) {
   if (!res.ok) {
     if (res.why === 'wrong-picky') {
       state.combo = 0;
+      state.cook.anim = 'sad';
+      state.cook.animT = 0;
       showToast('Bukan pesanan! (cek tag merah) — kombo putus');
       playBurn();
       addShake(state, 0.3);
@@ -204,6 +216,15 @@ function doServeWindowPlate(slot) {
     sub: res.tip > 0 ? `termasuk tip Rp ${res.tip}` : '',
     colors: ['#F5C542', '#F2A541', '#FFF3D6'],
   });
+  state.cook.anim = 'serve';
+  state.cook.animT = 0;
+  // The served ticket's customer leaves happy.
+  const cust = state.customers.find((c) => c && res.ticket && c.ticketId === res.ticket.id);
+  if (cust) {
+    cust.mood = 'happy';
+    cust.leaving = true;
+    cust.leaveT = 0;
+  }
   playBell();
   playCoin();
   showToast(res.starred ? '★ Pak Budi dilayani! Terima kasih!' : `${res.dish} diantar!`);
@@ -294,11 +315,6 @@ function doInteract() {
 
 // --- Click handling: set a walk target + an action on arrival ---
 
-// Set a walk destination. The pathfinder routes around the counters
-// (straight lines cross the prep-counter island and stall on a corner),
-// so the cook follows a waypoint list and runs `action` on arrival.
-// When no path exists (should not happen on this floor), fall back to a
-// straight walk so the cook still tries.
 function setWalkTarget(x, y, action) {
   const c = state.cook;
   const path = simplifyPath(findPath(c.x, c.y, x, y));
@@ -532,14 +548,19 @@ function update(dt) {
       if (state.mode === 'playing') {
         const action = hitTestClick(click.x, click.y);
         handleClickAction(action);
+      } else if (state.mode === 'title') {
+        // MULAI MASAK button (540,400,200,56).
+        if (click.x >= 540 && click.x <= 740 && click.y >= 400 && click.y <= 456) {
+          resumeAudio();
+          startShift();
+        }
       } else if (state.mode === 'summary') {
         // MAIN LAGI button (540,430,200,56).
         if (click.x >= 540 && click.x <= 740 && click.y >= 430 && click.y <= 486) {
           restartShift();
         }
       }
-      // Title clicks are handled by the startGame() listener (MULAI MASAK);
-      // paused/book clicks do nothing.
+      // Paused/book clicks do nothing.
     }
     let key;
     while ((key = consumePressed(input))) {
@@ -557,6 +578,12 @@ function update(dt) {
   state.time += dt;
   const expired = updateOrders(state, dt);
   for (const t of expired) {
+    const cust = state.customers.find((c) => c && c.ticketId === t.id);
+    if (cust) {
+      cust.mood = 'angry';
+      cust.leaving = true;
+      cust.leaveT = 0;
+    }
     showToast(`Pesanan ${t.dish} hangus — kombo putus!`);
     playBurn();
     addShake(state, 0.25);
@@ -569,6 +596,8 @@ function update(dt) {
       spawnSteam(state, b.x + b.w / 2, b.y, 4);
     } else if (ev.type === 'burnt') {
       state.combo = 0;
+      state.cook.anim = 'sad';
+      state.cook.animT = 0;
       showToast('Gosong! Buang ke tempat sampah — kombo putus');
       playBurn();
       addShake(state, 0.3);
@@ -603,20 +632,77 @@ function update(dt) {
   }
 }
 
-function frame(t) {
-  const now = t / 1000;
-  let dt = lastTime ? now - lastTime : STEP;
-  lastTime = now;
-  if (dt > 0.25) dt = 0.25;
-  acc += dt;
-  let guard = 0;
-  while (acc >= STEP && guard < 5) {
-    update(STEP);
-    acc -= STEP;
-    guard++;
+// --- Anim driver (visual only — runs every frame, all modes) ---
+// Walking / carrying override everything; action anims (chop/stir/serve/
+// celebrate/sad) decay back to idle after their duration. Frozen shot
+// staging keeps the staged pose exactly (no animT advance).
+
+function driveAnim(dt) {
+  if (state.frozen) return;
+  const c = state.cook;
+  // Facing follows the walk direction (side view is always profile).
+  if (c.dir === 2) c.facing = -1;
+  else if (c.dir === 3) c.facing = 1;
+  if (c.walking) {
+    c.anim = c.plate ? 'carry' : 'walk';
+    c.animT += dt;
+    return;
   }
-  render(ctx, state);
-  requestAnimationFrame(frame);
+  if (c.plate) {
+    c.anim = 'carry';
+    c.animT += dt;
+    return;
+  }
+  if (c.anim === 'chop' || c.anim === 'stir' || c.anim === 'serve' || c.anim === 'celebrate' || c.anim === 'sad') {
+    c.animT += dt;
+    const dur = c.anim === 'chop' ? ANIM.chopLoop
+      : c.anim === 'stir' ? ANIM.stirLoop
+      : c.anim === 'serve' ? ANIM.serveTime
+      : c.anim === 'celebrate' ? ANIM.celebrateTime
+      : ANIM.sadTime;
+    if (c.animT >= dur) { c.anim = 'idle'; c.animT = 0; }
+    return;
+  }
+  c.anim = 'idle';
+  c.animT += dt;
+}
+
+// --- Customer sync (presentation only — never a mechanic) ---
+// One customer per ticket slot. A new ticket spawns a customer (slide-in);
+// a served ticket's customer leaves happy (set by doServeWindowPlate), an
+// expired ticket's leaves angry (set by update()). Mood follows the ticket's
+// patience while the customer waits. Frozen shot staging keeps the staged
+// customers exactly (no timer advance).
+
+const SLOT_KINDS = ['sari', 'andi', 'rina'];
+
+function syncCustomersView(dt) {
+  for (let i = 0; i < 3; i++) {
+    const ticket = state.tickets[i];
+    let cs = state.customers[i];
+    if (ticket) {
+      if (!cs || cs.ticketId !== ticket.id) {
+        cs = {
+          kind: ticket.starred ? 'budi' : SLOT_KINDS[i],
+          mood: 'neutral',
+          enterT: 0,
+          leaveT: 0,
+          leaving: false,
+          ticketId: ticket.id,
+        };
+        state.customers[i] = cs;
+      }
+      if (!cs.leaving) {
+        const frac = ticket.patience / ticket.maxPatience;
+        cs.mood = frac > 0.5 ? 'neutral' : frac >= 0.25 ? 'impatient' : 'angry';
+      }
+      if (!state.frozen && cs.enterT < ANIM.arriveTime) cs.enterT += dt;
+    } else if (cs) {
+      if (!cs.leaving) { cs.leaving = true; cs.leaveT = 0; cs.mood = 'angry'; }
+      if (!state.frozen) cs.leaveT += dt;
+      if (cs.leaveT >= ANIM.leaveTime) state.customers[i] = null;
+    }
+  }
 }
 
 // --- Debug hooks (develop-web-game skill) ---
@@ -656,10 +742,49 @@ window.render_game_to_text = function renderGameToText() {
 window.advanceTime = function advanceTime(ms) {
   const steps = Math.max(1, Math.round(ms / (1000 / 60)));
   for (let i = 0; i < steps; i++) update(1 / 60);
-  render(ctx, state);
+  driveAnim(ms / 1000);
+  syncCustomersView(ms / 1000);
+  if (view) syncScene(view, state, ms / 1000);
+  // Force one render (delta 0 = no extra mechanics step) so a screenshot
+  // taken right after advanceTime shows the stepped state.
+  if (game) game.step(performance.now(), 0);
 };
 
-// --- Boot ---
+// --- Phaser boot ---
+
+let shotMode = false;
+
+function createScene() {
+  // `this` is the Phaser Scene.
+  input = createInput(this);
+  view = buildScene(this, state);
+  // Re-apply the letterbox fit (Phaser may have reset the canvas style).
+  if (typeof window.fit === 'function') window.fit();
+  window.__phaserReady = true;
+}
+
+function updateScene(time, delta) {
+  const dt = Math.min(0.25, delta / 1000);
+  frameCount += 1;
+  // Debug hook: window.__pauseLoop freezes the mechanics stepping (the
+  // rAF loop) so a test can drive the game deterministically via
+  // advanceTime() alone. Rendering / anim / customer sync keep running.
+  if (!window.__pauseLoop) {
+    acc += dt;
+    let guard = 0;
+    while (acc >= STEP && guard < 5) {
+      update(STEP);
+      acc -= STEP;
+      guard += 1;
+    }
+  }
+  driveAnim(dt);
+  syncCustomersView(dt);
+  if (view) syncScene(view, state, dt);
+  // Shot mode: after 2 frames at least one render has completed, so the
+  // staged state is on the canvas and a screenshot is safe.
+  if (shotMode && frameCount >= 2 && !window.__shotReady) window.__shotReady = true;
+}
 
 export function startGame() {
   // Shot mode: ?shot=cover|chop|serve|angle&seed=N — deterministic staged state, frozen.
@@ -667,26 +792,24 @@ export function startGame() {
   const shot = params.get('shot');
   const seed = Number(params.get('seed') || 7);
   state = createGameState(seed);
+  shotMode = !!shot;
   if (shot) {
     stageShot(state, shot);
-    render(ctx, state);
-    requestAnimationFrame(frame);
-    return;
   }
   // Title screen over the kitchen: stage a quiet kitchen behind it.
-  state.mode = 'title';
-  render(ctx, state);
-  requestAnimationFrame(frame);
-  // Title: click MULAI MASAK (or Enter) to start.
-  canvas.addEventListener('click', () => {
-    if (state.mode === 'title') {
-      const m = input.mouse;
-      if (m.x >= 540 && m.x <= 740 && m.y >= 400 && m.y <= 456) {
-        resumeAudio();
-        startShift();
-      }
-    }
+  state.mode = shot ? state.mode : 'title';
+  game = new Phaser.Game({
+    type: Phaser.CANVAS,
+    canvas: document.getElementById('game'),
+    width: 1280,
+    height: 720,
+    backgroundColor: '#F7E8C8',
+    banner: false,
+    disableContextMenu: true,
+    fps: { target: 60 },
+    scene: { create: createScene, update: updateScene },
   });
+  window.__game = game; // debug hook (scene-graph inspection)
 }
 
 startGame();

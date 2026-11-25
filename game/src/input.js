@@ -1,17 +1,20 @@
-// input.js — Input: keyboard + mouse, click-to-walk, key map.
+// input.js — Input via Phaser: pointerdown / pointermove / keyboard.
 // Click-a-station is PRIMARY (click station/bowl/ticket/plate = walk there +
 // auto-interact on arrival). WASD/arrows are dropped (Revision 1); cheap
 // shortcuts stay (1-3 tickets, Z-N bowls, E/Space, Q, K, P/Esc, M).
-// single-key shortcuts remain: 1–3 tickets, Z–N bowls, Q trash, K book,
-// P/Esc pause, M mute, E/Space interact with the faced station.
+// The queues (clicks[] / pressed[]) and the consumption functions are the
+// same shape as the DOM version — main.js's update() consumes them exactly
+// as before, so the fixed mode-gating behaviour (input in ALL modes) is
+// preserved. Phaser pointer.x/y are already logical 1280x720 coords
+// (the Scale Manager handles the CSS letterbox), so no conversion is needed.
 
 import { ZONES, inRect } from './zones.js';
 
-// Logical canvas size; the canvas is scaled to fit the window (letterbox).
+// Logical canvas size.
 export const LOGICAL_W = 1280;
 export const LOGICAL_H = 720;
 
-export function createInput(canvas) {
+export function createInput(scene) {
   const input = {
     keys: new Set(),
     mouse: { x: 0, y: 0, down: false },
@@ -19,33 +22,20 @@ export function createInput(canvas) {
     pressed: [], // queued key strings (consumed once)
   };
 
-  function toLogical(clientX, clientY) {
-    const rect = canvas.getBoundingClientRect();
-    const scale = Math.min(rect.width / LOGICAL_W, rect.height / LOGICAL_H);
-    const ox = (rect.width - LOGICAL_W * scale) / 2;
-    const oy = (rect.height - LOGICAL_H * scale) / 2;
-    return {
-      x: (clientX - rect.left - ox) / scale,
-      y: (clientY - rect.top - oy) / scale,
-    };
-  }
-
-  canvas.addEventListener('mousemove', (e) => {
-    const p = toLogical(e.clientX, e.clientY);
-    input.mouse.x = p.x;
-    input.mouse.y = p.y;
-  });
-  canvas.addEventListener('mousedown', (e) => {
+  scene.input.on('pointerdown', (pointer) => {
     input.mouse.down = true;
-    const p = toLogical(e.clientX, e.clientY);
-    input.mouse.x = p.x;
-    input.mouse.y = p.y;
-    input.clicks.push({ x: p.x, y: p.y });
+    input.mouse.x = pointer.x;
+    input.mouse.y = pointer.y;
+    input.clicks.push({ x: pointer.x, y: pointer.y });
   });
-  canvas.addEventListener('mouseup', () => {
+  scene.input.on('pointerup', () => {
     input.mouse.down = false;
   });
-  window.addEventListener('keydown', (e) => {
+  scene.input.on('pointermove', (pointer) => {
+    input.mouse.x = pointer.x;
+    input.mouse.y = pointer.y;
+  });
+  scene.input.keyboard.on('keydown', (e) => {
     const key = e.key.toLowerCase();
     if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
       e.preventDefault();
@@ -53,7 +43,7 @@ export function createInput(canvas) {
     if (!input.keys.has(key)) input.pressed.push(key);
     input.keys.add(key);
   });
-  window.addEventListener('keyup', (e) => {
+  scene.input.keyboard.on('keyup', (e) => {
     input.keys.delete(e.key.toLowerCase());
   });
   return input;
@@ -68,10 +58,19 @@ export function consumePressed(input) {
 }
 
 // What did the player click? Returns an action descriptor, or null.
-// Priority: tickets → bowls → finishers → plates → burners → bin → stations.
+// Priority (side view): bubbles → customers → bowls → finishers → plates →
+// burners → bin → bell → windowPlates → stations → window lane → walk.
+// Hit-test priority (first match wins): bubbles, customers, bowls,
+// finishers, plates, burners, bin, bell, window plates, stations, lane,
+// then open floor (walk). The order matters — a bubble sits above a
+// customer, a burner sits on its station, and the window plates sit on
+// the counter — so the smaller, more specific target is tested first.
 export function hitTestClick(x, y) {
   for (let i = 0; i < ZONES.tickets.length; i++) {
     if (inRect(x, y, ZONES.tickets[i])) return { type: 'ticket', slot: i };
+  }
+  for (let i = 0; i < ZONES.customers.length; i++) {
+    if (inRect(x, y, ZONES.customers[i])) return { type: 'ticket', slot: i };
   }
   for (let i = 0; i < ZONES.bowls.length; i++) {
     if (inRect(x, y, ZONES.bowls[i])) return { type: 'bowl', index: i };
@@ -86,6 +85,7 @@ export function hitTestClick(x, y) {
     if (inRect(x, y, ZONES.burners[i])) return { type: 'burner', index: i };
   }
   if (inRect(x, y, ZONES.bin)) return { type: 'bin' };
+  if (inRect(x, y, ZONES.bell)) return { type: 'bell' };
   if (inRect(x, y, ZONES.windowPlates[0])) return { type: 'windowPlate', index: 0 };
   if (inRect(x, y, ZONES.windowPlates[1])) return { type: 'windowPlate', index: 1 };
   if (inRect(x, y, ZONES.stationClick.stove)) return { type: 'station', station: 'stove' };
@@ -93,6 +93,7 @@ export function hitTestClick(x, y) {
   if (inRect(x, y, ZONES.stationClick.plating)) return { type: 'station', station: 'plating' };
   if (inRect(x, y, ZONES.stationClick.window)) return { type: 'station', station: 'window' };
   if (inRect(x, y, ZONES.stationClick.pantry)) return { type: 'station', station: 'pantry' };
+  if (inRect(x, y, ZONES.lane)) return { type: 'station', station: 'window' };
   return { type: 'walk', x, y };
 }
 

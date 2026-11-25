@@ -3,9 +3,13 @@
 // code (same state constructors, same render), timers frozen at the values
 // shown. Staging only sets state — it never draws anything itself, so a shot
 // is exactly what a player would see in that situation.
-// below. Re-shootable after any fix. Capture at 1280×720 via ?shot=<name>.
+// Side-view layout (design v2.0): the cook stands on the floor (y 330+)
+// in front of the back-wall stations; customers sit behind the counter.
+// The anim pose is set explicitly (anim + animT) and frozen, so the shot is
+// deterministic — the anim driver does not advance while frozen.
+// Re-shootable after any fix. Capture at 1280×720 via ?shot=<name>.
 
-import { CONFIG } from './config.js';
+import { CONFIG, ANIM } from './config.js';
 import { makeTicket } from './state.js';
 
 function baseStaged(state, time, coins, combo) {
@@ -33,14 +37,44 @@ function baseStaged(state, time, coins, combo) {
   state.firstAction = true;
   state.cook.hands = [null, null];
   state.cook.plate = null;
+  state.cook.anim = 'idle';
+  state.cook.animT = 0;
+  state.cook.facing = 1;
+  state.cook.walking = false;
+  state.cook.target = null;
+  state.cook.path = null;
+  state.customers = [null, null, null];
+  state.camera = null;
+}
+
+// stageCustomers: pre-arrive the customers for the staged tickets (fully
+// slid in, so the screenshot never catches them mid-arrival). Kind by slot,
+// Pak Budi for the starred ticket; mood from the staged patience fraction.
+// The live game builds the same objects in main.js syncCustomersView —
+// staging just fast-forwards them to their arrived state.
+function stageCustomers(state) {
+  const kinds = ['sari', 'andi', 'rina'];
+  for (let i = 0; i < 3; i++) {
+    const ticket = state.tickets[i];
+    if (!ticket) continue;
+    const frac = ticket.patience / ticket.maxPatience;
+    state.customers[i] = {
+      kind: ticket.starred ? 'budi' : kinds[i],
+      mood: frac > 0.5 ? 'neutral' : frac >= 0.25 ? 'impatient' : 'angry',
+      enterT: ANIM.arriveTime,
+      leaveT: 0,
+      leaving: false,
+      ticketId: ticket.id,
+    };
+  }
 }
 
 // 1-cover.jpg — mid-shift, 01:47 left, coins Rp 380, combo ×1.5.
 // 3 tickets: Nasi Goreng amber ~50%, Sate Ayam red ~20% (selected, pulsing),
 // Es Teh Melati ★ Pak Budi green ~80%. Plating plate 1: Nasi Goreng 2/3 built
-// (cooked Nasi + chopped Telur, Kecap not yet added). Cook mid-walk between
-// stove and plating counter. Serving window: finished Mie Goreng READY with
-// bell + "+Rp 110" coin pop. No day badge, no goal (Revision 1).
+// (cooked Nasi + chopped Telur, Kecap not yet added). Cook mid-walk on the
+// floor toward the plating counter. Serving window: finished Mie Goreng READY
+// with bell + "+Rp 110" coin pop. No day badge, no goal (Revision 1).
 export function stageCover(state) {
   baseStaged(state, 73, 380, 3); // 180 - 73 = 107 s left = 01:47
   const nasi = makeTicket(state, 'nasi', 45, null, false);
@@ -66,17 +100,19 @@ export function stageCover(state) {
   // This is a real gameplay state now: placeAtWindow() puts a carried
   // finished plate here, and clicking it serves it (serveWindowPlate).
   state.windowPlates[0] = { dish: 'mie', items: [], finisher: 'kecap', picky: null };
-  // Coin pop sits BELOW the READY plate, clear of the customers and the
-  // READY tag (the old x=1132 overlapped the middle customer's face).
+  // Coin pop on the floor, clear of the customers and the READY tag.
   state.floats.push({
     x: 1075, y: 440, text: '+Rp 110', sub: 'termasuk tip Rp 25', color: '#F5C542', t: 0.3, life: 1.1,
   });
-  // Cook mid-walk between stove and plating counter, hands empty (walking to
-  // click the Kecap bottle for the 2/3 plate).
+  // Cook mid-walk on the floor toward the plating counter, hands empty
+  // (walking to click the Kecap bottle for the 2/3 plate).
   state.cook.x = 760;
-  state.cook.y = 300;
+  state.cook.y = 330;
   state.cook.dir = 3;
+  state.cook.facing = 1;
   state.cook.walking = true;
+  state.cook.anim = 'walk';
+  state.cook.animT = 0.35; // mid-stride, legs apart
   // A burner is cooking (steam) so the kitchen feels alive.
   state.burners[0] = { item: { kind: 'mie', prep: 'raw' }, t: 1.5, cookTime: 3, done: false, burnt: false };
   return state;
@@ -96,26 +132,30 @@ export function stageChop(state) {
   sate.patience = 25; // green ~70%
   state.tickets = [mie, nasi, sate];
   state.selectedTicket = 0;
-  state.cook.x = 360;
-  state.cook.y = 380;
-  state.cook.dir = 1; // facing the board (up)
+  // Cook at the chopping stand point, knife mid-swing (frame 2 of 3).
+  state.cook.x = 470;
+  state.cook.y = 330;
+  state.cook.dir = 1;
+  state.cook.facing = 1;
+  state.cook.anim = 'chop';
+  state.cook.animT = 0.25;
   state.cook.hands = [{ kind: 'sayur', prep: 'raw' }, null];
   state.toast = { text: 'Potong Sayur untuk Mie Goreng', t: 1 };
   state.toastT = 1;
   // Leaf particles frozen mid-air above the board.
   state.particles = [
-    { x: 340, y: 270, vx: 0, vy: 0, t: 0.2, life: 1, size: 5, color: '#5E9A4A', shape: 'leaf' },
-    { x: 360, y: 260, vx: 0, vy: 0, t: 0.25, life: 1, size: 4, color: '#7AB85E', shape: 'leaf' },
-    { x: 380, y: 272, vx: 0, vy: 0, t: 0.15, life: 1, size: 5, color: '#5E9A4A', shape: 'leaf' },
-    { x: 350, y: 250, vx: 0, vy: 0, t: 0.3, life: 1, size: 4, color: '#E07856', shape: 'circle' },
-    { x: 372, y: 255, vx: 0, vy: 0, t: 0.2, life: 1, size: 4, color: '#5E9A4A', shape: 'leaf' },
+    { x: 440, y: 290, vx: 0, vy: 0, t: 0.2, life: 1, size: 5, color: '#5E9A4A', shape: 'leaf' },
+    { x: 470, y: 280, vx: 0, vy: 0, t: 0.25, life: 1, size: 4, color: '#7AB85E', shape: 'leaf' },
+    { x: 500, y: 292, vx: 0, vy: 0, t: 0.15, life: 1, size: 5, color: '#5E9A4A', shape: 'leaf' },
+    { x: 455, y: 270, vx: 0, vy: 0, t: 0.3, life: 1, size: 4, color: '#E07856', shape: 'circle' },
+    { x: 490, y: 275, vx: 0, vy: 0, t: 0.2, life: 1, size: 4, color: '#5E9A4A', shape: 'leaf' },
   ];
   return state;
 }
 
-// 3-serve.jpg — mid-shift, cook at the serving window carrying a finished
-// Sate Ayam toward the window (place it, then click to serve); coin pop
-// "+Rp 175" floating from an earlier serve; combo ×1.5; order board full
+// 3-serve.jpg — mid-shift, cook carrying a finished Sate Ayam toward the
+// serving window (place it, then click to serve); coin pop "+Rp 175"
+// floating from an earlier serve; combo ×1.5; order board full
 // (fresh Es Teh just arrived in slot 0 + 2 remaining tickets);
 // shift timer 01:12.
 export function stageServe(state) {
@@ -128,12 +168,17 @@ export function stageServe(state) {
   mie.patience = 18;
   state.tickets = [teh, nasi, mie]; // full board: fresh ticket in slot 0
   state.selectedTicket = 1;
-  state.cook.x = 950;
-  state.cook.y = 380; // window stand point (left of the window wall, below the plating counter)
-  state.cook.dir = 3; // facing the window (right)
+  // Cook carrying the finished Sate plate across the floor toward the
+  // window lane (left), mid-stride.
+  state.cook.x = 420;
+  state.cook.y = 380;
+  state.cook.dir = 2;
+  state.cook.facing = -1;
+  state.cook.walking = true;
+  state.cook.anim = 'carry';
+  state.cook.animT = 0.35;
   state.cook.plate = { dish: 'sate', items: [], finisher: 'saus', picky: null };
-  // Coin pop below the window plates, clear of the customers (the old
-  // x=1132 overlapped the middle customer's head).
+  // Coin pop below the window plates, clear of the customers.
   state.floats.push({
     x: 1075, y: 440, text: '+Rp 175', sub: 'termasuk tip Rp 35', color: '#F5C542', t: 0.3, life: 1.1,
   });
@@ -144,8 +189,9 @@ export function stageServe(state) {
 // (red ~20%, pulsing) on a full 3-ticket board; Sate Ayam grilling on the
 // stove (~60%) with a second burner cooking Mie so the grill looks full;
 // Sate Ayam mid-assembly on the plate (grilled Ayam, saus not yet added).
-// Reads differently from shots 1–3 at thumbnail size: different dish,
-// different ticket, both burners lit.
+// Framed as a 1.35x close-up of the grill + plating area (camera), so it
+// reads differently from shots 1–3 at thumbnail size: different dish,
+// different ticket, both burners lit, tighter framing.
 export function stageSecondAngle(state) {
   baseStaged(state, 100, 260, 2); // 180 - 100 = 80 s left = 01:20
   const sate = makeTicket(state, 'sate', 36, null, false);
@@ -170,18 +216,25 @@ export function stageSecondAngle(state) {
     done: false,
     picky: null,
   };
-  // Cook at the stove, about to lift.
-  state.cook.x = 624;
-  state.cook.y = 210;
+  // Cook at the stove, mid-stir.
+  state.cook.x = 170;
+  state.cook.y = 330;
   state.cook.dir = 1;
+  state.cook.facing = 1;
+  state.cook.anim = 'stir';
+  state.cook.animT = 0.3;
   state.cook.hands = [null, null];
+  // Close-up camera on the grill + plating area (x 40-940, y 200-340).
+  state.camera = { x: 490, y: 270, zoom: 1.35 };
   return state;
 }
 
 export function stageShot(state, name) {
-  if (name === 'cover') return stageCover(state);
-  if (name === 'chop') return stageChop(state);
-  if (name === 'serve') return stageServe(state);
-  if (name === 'angle') return stageSecondAngle(state);
+  if (name === 'cover') stageCover(state);
+  else if (name === 'chop') stageChop(state);
+  else if (name === 'serve') stageServe(state);
+  else if (name === 'angle') stageSecondAngle(state);
+  else return state;
+  stageCustomers(state);
   return state;
 }

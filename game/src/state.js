@@ -16,13 +16,20 @@ export function createGameState(seed = 7) {
     bestCombo: 0,
     dishesServed: 0,
     cook: {
-      x: 624, y: 430, dir: 0, // 0 down, 1 up, 2 left, 3 right
+      x: 624, y: 380, dir: 0, // 0 down, 1 up, 2 left, 3 right
       target: null, // {x, y, action} — walk there, then run action
       path: null, // waypoint list from the pathfinder (or null) — follow in order
       walking: false,
       hands: [null, null], // up to 2 items {kind, prep}
       plate: null, // one finished plate carried, or null
+      anim: 'idle', // idle | walk | chop | stir | carry | serve | celebrate | sad
+      animT: 0, // seconds in the current animation state
+      facing: 1, // 1 = right, -1 = left (side view is always profile)
     },
+    // Customers behind the counter (presentation only — never a mechanic).
+    // 3 slots, one per ticket slot: {kind, mood, enterT, leaveT, leaving, ticketId}.
+    customers: [null, null, null],
+    camera: null, // null, or {x, y, zoom} for the staged shot-4 close-up
     burners: [
       { item: null, t: 0, cookTime: 0, done: false, burnt: false },
       { item: null, t: 0, cookTime: 0, done: false, burnt: false },
