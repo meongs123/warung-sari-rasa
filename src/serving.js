@@ -1,17 +1,7 @@
-// serving.js — serveWindowPlate(state, slot): match, coins, tip, combo, picky
-// check, expiry. Carry a finished plate to the window, place it there
-// (READY), then click it to ring the bell and serve it. Auto-match: the
-// active ticket first, then another open ticket; if it matches none, refuse
-// with a toast and keep the plate. A served dish pays base + tip by patience
-// left, and the combo multiplier grows per consecutive correct serve (cap
-// x2.0). shake (no penalty). Serving the standard dish to a picky ticket is
-// refused ("bukan pesanan!") and breaks the combo — the only wrong-serve in
-// the game.
-
+// warung-sari-rasa v3.0 — serving.js
 import { RECIPES, comboMultiplier, tipRate } from './config.js';
+import { eventActive } from './events.js';
 
-// Place the carried finished plate onto the serving window (READY). The
-// plate sits at the window until the player clicks it to serve.
 export function placeAtWindow(state, slot = -1) {
   const carried = state.cook.plate;
   if (!carried) return { ok: false, why: 'no-plate' };
@@ -25,14 +15,12 @@ export function placeAtWindow(state, slot = -1) {
   return { ok: true, slot: idx };
 }
 
-// Serve the finished plate sitting at the window (READY). Returns
-// {ok, coins, tip, combo, ticket, why}.
 export function serveWindowPlate(state, slot) {
   const carried = state.windowPlates[slot];
   if (!carried) return { ok: false, why: 'no-plate' };
   const dish = RECIPES[carried.dish];
   if (!dish) return { ok: false, why: 'no-dish' };
-  // Picky check: a standard plate served to a picky ticket is refused.
+
   const ticket = findServeTicket(state, carried);
   if (!ticket) return { ok: false, why: 'no-match' };
   if (ticket.picky && !carried.picky) {
@@ -41,9 +29,10 @@ export function serveWindowPlate(state, slot) {
   const patienceFrac = ticket.patience / ticket.maxPatience;
   const rate = tipRate(patienceFrac);
   const base = Math.round(dish.price * (ticket.picky ? 1.25 : 1));
-  const tip = Math.round(base * rate);
-  const mult = comboMultiplier(state.combo);
-  const earned = Math.round((base + tip) * mult);
+  const tip = state.lives <= 0 ? 0 : Math.round(base * rate);
+  const mult = state.lives <= 0 ? 1 : comboMultiplier(state.combo);
+  const evMult = eventActive(state) ? 2 : 1;
+  const earned = Math.round((base + tip) * mult * evMult);
   state.coins += earned;
   state.combo += 1;
   state.bestCombo = Math.max(state.bestCombo, state.combo);
@@ -66,8 +55,6 @@ export function serveWindowPlate(state, slot) {
   };
 }
 
-// The carried plate must have been built for this ticket's variant.
-// A plate built for the standard dish does NOT satisfy a picky ticket.
 function findServeTicket(state, carried) {
   const order = [];
   if (state.tickets[state.selectedTicket]) order.push(state.tickets[state.selectedTicket]);
@@ -84,12 +71,15 @@ function findServeTicket(state, carried) {
   return null;
 }
 
-// A ticket expires: it leaves angry, combo resets, no coins. Shift continues.
 export function expireTicket(state, slot) {
   const ticket = state.tickets[slot];
   if (!ticket) return null;
   state.tickets[slot] = null;
   state.combo = 0;
+  state.streak = 0;
+  state.lives = Math.max(0, state.lives - 1);
+  state.stats.walkouts += 1;
+  if (ticket.vip === 'kumis' && state.event) state.event.failed = true;
   if (ticket.starred) state.pakBudi.slot = -1;
   return ticket;
 }

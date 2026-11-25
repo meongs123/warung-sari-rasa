@@ -1,94 +1,78 @@
-// zones.js — exact pixel geometry for every interactive element (SIDE VIEW).
-// Single source of truth: input.js hit-tests against these, the Phaser scene
-// draws them. Layout per the pivot design doc §2 (1280x720 logical canvas).
-// Customers stand behind a counter at the top; the kitchen floor with
-// stations sits below; the cook walks the floor and up the window lane.
-
+// warung-sari-rasa v3.0 — zones.js
 export const ZONES = {
-  // Walkable floor bounds for the cook (x, y, w, h). The window lane
-  // (x 300-380) extends the floor up to y 235 so the cook can reach the
-  // customer counter; the back-wall stations block the rest of y 208-300.
-  // The floor top (y 235) is the lane mouth — the cook can only go higher
-  // (toward the counter) inside the lane, never through a station counter.
-  floor: { x: 16, y: 235, w: 1248, h: 405 },
-  // AABB blockers (counters the cook cannot walk through).
-  blockers: [
-    { x: 40, y: 208, w: 260, h: 92 }, // stove counter
-    { x: 380, y: 208, w: 180, h: 92 }, // chopping board counter
-    { x: 640, y: 208, w: 260, h: 92 }, // plating counter
-    { x: 960, y: 208, w: 280, h: 92 }, // pantry shelf
-    { x: 905, y: 250, w: 50, h: 50 }, // bin
-    { x: 480, y: 440, w: 320, h: 60 }, // prep island (display)
-  ],
-  // Pantry bowls: 6 bowls on the shelf, 3x2 grid.
-  // Row 0 (y 225): nasi, mie, telur. Row 1 (y 265): ayam, sayur, teh.
+
+  floor: { x: 16, y: 560, w: 1248, h: 80 },
+
+  blockers: [],
+
   bowls: [
-    { x: 990, y: 225, w: 72, h: 36 },
-    { x: 1075, y: 225, w: 72, h: 36 },
-    { x: 1160, y: 225, w: 72, h: 36 },
-    { x: 990, y: 265, w: 72, h: 36 },
-    { x: 1075, y: 265, w: 72, h: 36 },
-    { x: 1160, y: 265, w: 72, h: 36 },
+    { x: 20, y: 370, w: 176, h: 29 },
+    { x: 20, y: 401, w: 176, h: 29 },
+    { x: 20, y: 432, w: 176, h: 29 },
+    { x: 20, y: 463, w: 176, h: 29 },
+    { x: 20, y: 494, w: 176, h: 29 },
+    { x: 20, y: 525, w: 176, h: 29 },
   ],
-  // Order bubbles (3) above the customers — the order board, re-expressed.
-  // Centred x 320 / 640 / 960, y 60-116, w 170, h 56.
+
   tickets: [
-    { x: 235, y: 60, w: 170, h: 56 },
-    { x: 555, y: 60, w: 170, h: 56 },
-    { x: 875, y: 60, w: 170, h: 56 },
+    { x: 200, y: 60, w: 240, h: 90 },
+    { x: 520, y: 60, w: 240, h: 90 },
+    { x: 840, y: 60, w: 240, h: 90 },
   ],
-  // Customers (3) behind the counter, for click-to-select.
+
   customers: [
-    { x: 270, y: 116, w: 100, h: 92 },
-    { x: 590, y: 116, w: 100, h: 92 },
-    { x: 910, y: 116, w: 100, h: 92 },
+    { x: 270, y: 130, w: 100, h: 70 },
+    { x: 590, y: 130, w: 100, h: 70 },
+    { x: 910, y: 130, w: 100, h: 70 },
   ],
-  // Customer counter (the serving window is this counter itself).
-  counter: { x: 16, y: 168, w: 1248, h: 40 },
-  // Stove burners (2) on the stove counter.
+
+  counter: { x: 16, y: 168, w: 1248, h: 32 },
+
   burners: [
     { x: 90, y: 225, w: 90, h: 60 },
     { x: 210, y: 225, w: 90, h: 60 },
   ],
-  // Plating counter plate slots (2).
+
   plates: [
     { x: 680, y: 255, w: 64, h: 44 },
     { x: 790, y: 255, w: 64, h: 44 },
   ],
-  // Finisher bottles on the plating counter (Kecap, Saus Kacang, Es Batu).
+
   finishers: [
-    { x: 660, y: 215, w: 40, h: 48 },
-    { x: 720, y: 215, w: 40, h: 48 },
-    { x: 780, y: 215, w: 40, h: 48 },
+    { x: 700, y: 221, w: 40, h: 48 },
+    { x: 760, y: 221, w: 40, h: 48 },
+    { x: 820, y: 221, w: 40, h: 48 },
   ],
-  // Serving window READY plate spots (2) on the customer counter.
+
   windowPlates: [
     { x: 520, y: 158, w: 90, h: 50 },
     { x: 680, y: 158, w: 90, h: 50 },
   ],
-  // Brass bell on the counter, right of the plate spots. Click it to serve.
+
   bell: { x: 780, y: 150, w: 44, h: 36 },
-  // Bin (trash) next to the plating counter.
-  bin: { x: 905, y: 250, w: 50, h: 50 },
-  // Window lane: the walkable corridor up to the customer counter.
-  lane: { x: 300, y: 208, w: 80, h: 122 },
-  // Station click targets (generous, for click-to-walk).
+
+  bin: { x: 1120, y: 575, w: 50, h: 65 },
+
+  lane: { x: 16, y: 560, w: 1248, h: 80 },
+
   stationClick: {
-    pantry: { x: 960, y: 208, w: 280, h: 92 },
-    chopping: { x: 380, y: 208, w: 180, h: 92 },
-    stove: { x: 40, y: 208, w: 260, h: 92 },
-    plating: { x: 640, y: 208, w: 260, h: 92 },
+    stove: { x: 40, y: 200, w: 280, h: 120 },
+    chopping: { x: 360, y: 200, w: 280, h: 120 },
+    plating: { x: 680, y: 200, w: 280, h: 120 },
+    pass: { x: 1000, y: 200, w: 240, h: 120 },
     window: { x: 16, y: 150, w: 1248, h: 58 },
-    prep: { x: 480, y: 440, w: 320, h: 60 },
+    pantry: { x: 16, y: 340, w: 184, h: 220 },
+    chopPanel: { x: 220, y: 340, w: 340, h: 220 },
+    platePanel: { x: 580, y: 340, w: 340, h: 220 },
   },
-  // Stand points: where the cook stands to use each station.
+
   stand: {
-    pantry: { x: 1120, y: 330 },
-    chopping: { x: 470, y: 330 },
-    stove: { x: 170, y: 330 },
-    plating: { x: 770, y: 330 },
-    window: { x: 340, y: 250 }, // up the window lane (x 300-380, walkable to y 235)
-    bin: { x: 930, y: 330 },
+    pantry: { x: 110, y: 600 },
+    stove: { x: 180, y: 600 },
+    chopping: { x: 500, y: 600 },
+    plating: { x: 820, y: 600 },
+    window: { x: 600, y: 600 },
+    bin: { x: 1150, y: 600 },
   },
 };
 

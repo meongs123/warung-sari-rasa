@@ -1,9 +1,4 @@
-// audio.js — Audio: WebAudio synth only, no audio files.
-// chop = short filtered-noise burst; sizzle = looped filtered noise while a
-// burner is active; ding / coin / bell / burn / jingle are small synth blips.
-// All sounds are generated at runtime; muting (M) silences the master gain.
-// Master gain 0.5; M mutes (session only, no storage).
-
+// warung-sari-rasa v3.0 — audio.js
 let ctx = null;
 let master = null;
 let muted = false;
@@ -124,7 +119,6 @@ export function playRefuse() {
   tone(220, 0.12, 'square', 0.2);
 }
 
-// Sizzle loop while any burner is active (gain tied to burner count).
 export function setSizzle(activeCount) {
   const ac = ensureCtx();
   if (!ac) return;
@@ -148,7 +142,7 @@ export function setSizzle(activeCount) {
     sizzleNodes = { src, g };
   } else if (sizzleNodes) {
     if (activeCount <= 0) {
-      try { sizzleNodes.src.stop(); } catch (e) { /* already stopped */ }
+      try { sizzleNodes.src.stop(); } catch (e) {  }
       sizzleNodes = null;
     } else {
       sizzleNodes.g.gain.value = muted ? 0 : 0.05 * activeCount;

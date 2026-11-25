@@ -1,8 +1,4 @@
-// chopping.js — chopItem(state): raw → chopped, what is choppable.
-// Sayur→Sayur Potong, Ayam→Ayam Potong, Telur→Telur Kocok. One click = one chop,
-// instant. Chopping a non-choppable item is refused (no time lost beyond the walk).
-// The board holds one item at a time; the chop replaces it in the same hand slot.
-
+// warung-sari-rasa v3.0 — chopping.js
 import { INGREDIENTS } from './config.js';
 import { firstHandItem, removeFromHand, takeIntoHand } from './state.js';
 
@@ -18,7 +14,6 @@ export function choppedName(kind) {
   return kind;
 }
 
-// Chop the first choppable raw item in hand. Returns {ok, item, why}.
 export function chopItem(state) {
   const item = firstHandItem(state);
   if (!item) return { ok: false, why: 'empty-hands' };
@@ -31,7 +26,6 @@ export function chopItem(state) {
   return { ok: true, item: chopped };
 }
 
-// The first choppable raw item in hand, if any (for UI hints).
 export function nextChoppable(state) {
   return state.cook.hands.find((i) => i && i.prep === 'raw' && choppableKind(i.kind)) || null;
 }

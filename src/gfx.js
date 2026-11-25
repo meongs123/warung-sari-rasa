@@ -1,12 +1,4 @@
-// gfx.js — tiny Phaser Graphics helpers, so the drawing code reads like the
-// old canvas code (circle / ellipse / rect / triangle) instead of spelling
-// out Phaser's fill* calls everywhere. All helpers take a Phaser Graphics
-// object `g` and draw at ABSOLUTE coordinates (the Graphics sits at 0,0).
-// Colours are hex strings ('#RRGGBB'), 'rgba(r,g,b,a)' strings, or numbers.
-
-// parseColor: '#RRGGBB' -> [0xRRGGBB, 1], 'rgba(r,g,b,a)' -> [0xRRGGBB, a],
-// a plain number -> [number, 1]. Returns a pair so the caller can multiply
-// the string alpha into the fill alpha (resolve() does that).
+// warung-sari-rasa v3.0 — gfx.js
 function parseColor(color) {
   if (typeof color === 'number') return [color, 1];
   if (color.startsWith('rgba')) {
@@ -17,7 +9,6 @@ function parseColor(color) {
   return [parseInt(color.slice(1), 16), 1];
 }
 
-// Resolve a colour + alpha into the pair Phaser's fillStyle/lineStyle want.
 function resolve(color, alpha) {
   const [n, a] = parseColor(color);
   return [n, a * alpha];
@@ -58,7 +49,6 @@ export function gTriangle(g, x0, y0, x1, y1, x2, y2, color, alpha = 1) {
   return g;
 }
 
-// Stroked circle outline (no fill).
 export function gCircleStroke(g, x, y, r, color, width = 2, alpha = 1) {
   const [c, a] = resolve(color, alpha);
   g.lineStyle(width, c, a);
@@ -66,7 +56,6 @@ export function gCircleStroke(g, x, y, r, color, width = 2, alpha = 1) {
   return g;
 }
 
-// Stroked rounded-rect outline (no fill).
 export function gRoundRectStroke(g, x, y, w, h, r, color, width = 2, alpha = 1) {
   const [c, a] = resolve(color, alpha);
   g.lineStyle(width, c, a);
@@ -74,7 +63,6 @@ export function gRoundRectStroke(g, x, y, w, h, r, color, width = 2, alpha = 1) 
   return g;
 }
 
-// A line segment.
 export function gLine(g, x0, y0, x1, y1, color, width = 2, alpha = 1) {
   const [c, a] = resolve(color, alpha);
   g.lineStyle(width, c, a);
@@ -86,7 +74,6 @@ export function gLine(g, x0, y0, x1, y1, color, width = 2, alpha = 1) {
   return g;
 }
 
-// An arc stroke (part of a circle outline), angles in radians.
 export function gArc(g, x, y, r, start, end, color, width = 2, alpha = 1) {
   const [c, a] = resolve(color, alpha);
   g.lineStyle(width, c, a);
