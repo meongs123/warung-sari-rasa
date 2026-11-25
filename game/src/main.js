@@ -810,6 +810,8 @@ export function startGame() {
     scene: { create: createScene, update: updateScene },
   });
   window.__game = game; // debug hook (scene-graph inspection)
+  // Debug hook: live read of the current game state (for tests / screenshots).
+  Object.defineProperty(window, '__state', { get: () => state, configurable: true });
 }
 
 startGame();
