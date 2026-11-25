@@ -1,8 +1,4 @@
-// recipebook.js — static recipe list + overlay data (Revision 1).
-// The book is help only: all 4 recipes listed, always visible. No discovery
-// states, no "???" silhouettes, no "Buku Resep Lengkap". Open with B; timers pause.
-// The overlay is a pause screen: the shift clock and burners freeze while it is open.
-
+// warung-sari-rasa v3.0 — recipebook.js
 import { RECIPE_ORDER, RECIPES, FINISHERS } from './config.js';
 
 export function recipeBookEntries() {
@@ -20,7 +16,6 @@ export function recipeBookEntries() {
   });
 }
 
-// Human-readable chain steps for the book panel.
 export function recipeSteps(recipe) {
   const steps = [];
   for (const comp of recipe.plate) {

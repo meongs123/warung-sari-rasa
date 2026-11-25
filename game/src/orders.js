@@ -1,7 +1,4 @@
-// orders.js — spawnTicket(), updatePatience(dt), expireTicket().
-// In-shift ramp: spawn interval and patience tighten by shift third.
-// Picky orders (skip-one-step only) appear in the last 90 s, max 1 open.
-
+// warung-sari-rasa v3.0 — orders.js
 import { CONFIG, RECIPE_ORDER, RECIPES } from './config.js';
 import { makeTicket, shiftOver, rampThird } from './state.js';
 import { expireTicket } from './serving.js';
@@ -28,7 +25,7 @@ function choosePicky(state, dishId) {
 }
 
 function chooseDish(state) {
-  // Es Teh is the breather: never offer more than one at a time.
+
   const openTeh = state.tickets.some((t) => t && t.dish === 'teh');
   const pool = DISH_WEIGHTS.filter(([id]) => !(id === 'teh' && openTeh));
   return pickWeighted(state.rng, pool);
@@ -46,8 +43,6 @@ export function spawnTicket(state) {
   return ticket;
 }
 
-// The opening ticket: always Nasi Goreng, patience 60 s, and the spawn clock
-// does not start until the player's first action (first success guaranteed).
 export function spawnFirstTicket(state) {
   const ticket = makeTicket(state, 'nasi', CONFIG.firstTicketPatience, null, false);
   state.tickets[0] = ticket;
@@ -55,7 +50,6 @@ export function spawnFirstTicket(state) {
   return ticket;
 }
 
-// Advance the ticket clock. Returns expired tickets (for feedback).
 export function updateOrders(state, dt) {
   if (shiftOver(state)) return [];
   if (!state.firstAction) return [];
@@ -66,7 +60,7 @@ export function updateOrders(state, dt) {
     state.spawnTimer = 0;
     spawnTicket(state);
   }
-  // Pak Budi's starred ticket spawns once, ~45 s in.
+
   if (!state.pakBudi.spawned && state.time >= CONFIG.pakBudiAt) {
     state.pakBudi.spawned = true;
     const free = state.tickets.findIndex((t) => !t);
@@ -76,7 +70,7 @@ export function updateOrders(state, dt) {
       state.pakBudi.slot = free;
     }
   }
-  // Patience drains; expired tickets leave angry and reset the combo.
+
   const expired = [];
   for (let i = 0; i < state.tickets.length; i++) {
     const t = state.tickets[i];

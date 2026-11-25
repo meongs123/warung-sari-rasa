@@ -1,12 +1,4 @@
-// main.js — startGame(): Phaser boot, game loop (fixed timestep inside the
-// Phaser scene update), screen stack, wires everything together.
-// Click-to-walk is primary; E/Space interacts with the faced station;
-// 1–3 tickets, Z–N bowls, Q trash, K book, P/Esc pause, M mute.
-// Debug hooks: window.render_game_to_text + window.advanceTime.
-// Mechanics (orders / stove / plating / serving / chopping / pantry) are the
-// verified plain-JS modules; Phaser owns the loop, the rendering (render.js)
-// and the input (input.js). The anim driver + customer sync live here.
-
+// warung-sari-rasa v3.0 — main.js
 import { CONFIG, ANIM, FINISHERS } from './config.js';
 import { createGameState, rampThird, timeLeft, shiftOver, handsFree } from './state.js';
 import { ZONES, inRect } from './zones.js';
@@ -17,6 +9,7 @@ import { placeOnBurner, liftFromBurner, updateBurners, clearBurntBurner, doneBur
 import { placeOnPlate, addFinisher, takePlate, trashPlate, refreshPlateDone } from './plating.js';
 import { serveWindowPlate, placeAtWindow } from './serving.js';
 import { spawnFirstTicket, updateOrders, selectTicket } from './orders.js';
+import { maybeStartEvent, eventActive, eventMultiplier } from './events.js';
 import { PAK_BUDI_STORY } from './regular.js';
 import { buildScene, syncScene } from './render.js';
 import { findPath, simplifyPath } from './pathfind.js';
@@ -28,8 +21,8 @@ import {
 import { stageShot } from './shots.js';
 
 let state = createGameState(7);
-let input = null; // created in the scene create() (needs the Phaser scene)
-let view = null; // the scene view from buildScene()
+let input = null;
+let view = null;
 let game = null;
 let acc = 0;
 let frameCount = 0;
@@ -38,6 +31,10 @@ const STEP = 1 / 60;
 function showToast(text, seconds = 2) {
   state.toast = { text, t: seconds };
   state.toastT = seconds;
+}
+
+function showDialogue(who, lines) {
+  state.dialogue = { who, lines, until: state.time + 4 };
 }
 
 function refuse(why) {
@@ -66,8 +63,6 @@ function refuse(why) {
   addShake(state, 0.15);
 }
 
-// --- Station smart actions (what a click / E does at each station) ---
-
 function doTakeBowl(index) {
   const res = takeIngredient(state, index);
   if (!res.ok) return refuse(res.why);
@@ -89,7 +84,7 @@ function doChop() {
 }
 
 function doStove(burnerIndex = -1) {
-  // If a burner is done, lift it; else place a cookable item; else refuse.
+
   const done = doneBurner(state);
   if (done >= 0 && (burnerIndex < 0 || burnerIndex === done)) {
     const res = liftFromBurner(state, done);
@@ -100,7 +95,7 @@ function doStove(burnerIndex = -1) {
     }
     return refuse(res.why);
   }
-  // If a specific burner was clicked and it is burnt, clear it.
+
   if (burnerIndex >= 0) {
     const b = state.burners[burnerIndex];
     if (b.item && b.burnt) {
@@ -127,7 +122,7 @@ function doStove(burnerIndex = -1) {
 }
 
 function doPlate(plateIndex = -1) {
-  // If carrying a finished plate, this click is a mistake — go to the window.
+
   if (state.cook.plate) return showToast('Bawa piring ke jendela saji!');
   const item = state.cook.hands.find(Boolean);
   if (item) {
@@ -145,7 +140,7 @@ function doPlate(plateIndex = -1) {
     advancePrompt('plate');
     return;
   }
-  // Hands empty: pick up a finished plate.
+
   let idx = plateIndex;
   if (idx < 0) idx = state.plates.findIndex((p) => p.done);
   if (idx < 0) return showToast('Tidak ada piring jadi — rakit dulu');
@@ -173,17 +168,18 @@ function doFinisher(finisherIndex) {
 }
 
 function doWindow() {
-  // Place the carried finished plate at the window (READY). Serving is a
-  // separate step: click the READY plate to ring the bell (doServeWindowPlate).
+
   if (!state.cook.plate) return showToast('Bawa piring jadi ke sini');
   const res = placeAtWindow(state);
   if (!res.ok) return refuse(res.why);
   playPlok();
+  if (!state.stats.readyShown) {
+    state.stats.readyShown = true;
+    showDialogue('Ibu Sari', 'Piring siap! Klik BEL untuk sajikan.');
+  }
   showToast('Piring siap di jendela — klik piringnya untuk sajikan!');
 }
 
-// Ring the bell: serve the finished plate sitting at the window slot.
-// Clicking an empty slot while carrying places the plate there instead.
 function doServeWindowPlate(slot) {
   const plate = state.windowPlates[slot];
   if (!plate) {
@@ -209,6 +205,27 @@ function doServeWindowPlate(slot) {
     }
     return refuse(res.why);
   }
+
+  const frac = res.ticket.patience / res.ticket.maxPatience;
+  state.stats.served += 1;
+  state.stats.dishes[res.ticket.dish] = (state.stats.dishes[res.ticket.dish] || 0) + 1;
+  state.streak += 1;
+  state.stats.firstBell = true;
+  if (frac > 0.5) state.stats.perfect += 1;
+  if (state.stats.lastDish === res.ticket.dish) {
+    state.stats.batchBonus += 25;
+    state.coins += 25;
+  }
+  state.stats.lastDish = res.ticket.dish;
+
+  if (res.ticket.vip === 'kumis' && state.event) {
+    if (frac > 0.5) {
+      state.event.cleared = true;
+      state.coins += 50;
+    } else {
+      state.event.failed = true;
+    }
+  }
   const wx = ZONES.windowPlates[slot].x + 45;
   const wy = ZONES.windowPlates[slot].y;
   feedback(state, 'large', wx, wy, {
@@ -218,7 +235,7 @@ function doServeWindowPlate(slot) {
   });
   state.cook.anim = 'serve';
   state.cook.animT = 0;
-  // The served ticket's customer leaves happy.
+
   const cust = state.customers.find((c) => c && res.ticket && c.ticketId === res.ticket.id);
   if (cust) {
     cust.mood = 'happy';
@@ -227,13 +244,14 @@ function doServeWindowPlate(slot) {
   }
   playBell();
   playCoin();
-  showToast(res.starred ? '★ Pak Budi dilayani! Terima kasih!' : `${res.dish} diantar!`);
+  if (res.ticket.vip === 'kumis') {
+    showToast(state.event && state.event.cleared ? 'SEMPURNA! Pak Kumis puas! +Rp 50' : 'Pak Kumis dilayani — tapi tidak sempurna.');
+  } else {
+    showToast(res.starred ? '★ Pak Budi dilayani! Terima kasih!' : `${res.dish} diantar!`);
+  }
   advancePrompt('serve');
 }
 
-// Ring the bell (the brass bell on the counter): serve the first finished
-// plate sitting at the window. If no plate is at the window yet, the bell
-// has nothing to serve — the toast tells the player to bring a plate.
 function doServeBell() {
   const slot = state.windowPlates.findIndex((p) => p);
   if (slot < 0) return showToast('Bawa piring jadi ke sini');
@@ -256,7 +274,7 @@ function doBin() {
     showToast('Piring dibuang');
     return;
   }
-  // Trash the first non-empty plate on the plating counter.
+
   const idx = state.plates.findIndex((p) => p.items.length || p.finisher);
   if (idx >= 0) {
     trashPlate(state, idx);
@@ -264,8 +282,7 @@ function doBin() {
     showToast('Piring dibuang');
     return;
   }
-  // Last resort: trash a finished plate sitting at the window (READY) that
-  // no open ticket wants anymore.
+
   const widx = state.windowPlates.findIndex(Boolean);
   if (widx >= 0) {
     state.windowPlates[widx] = null;
@@ -278,7 +295,6 @@ function doTrashKey() {
   doBin();
 }
 
-// The nearest station the cook is facing / standing at (for E/Space).
 function nearestStation() {
   const c = state.cook;
   const stations = [
@@ -310,7 +326,7 @@ function doInteract() {
   else if (station === 'window') doWindow();
   else if (station === 'bin') doBin();
   else if (station === 'pantry') {
-    // Interact at pantry takes the first bowl the player needs (first open ticket's first missing raw).
+
     const ticket = state.tickets[state.selectedTicket];
     if (ticket) {
       const ingIndex = [0, 1, 2, 3, 4, 5].find((i) => {
@@ -322,14 +338,15 @@ function doInteract() {
   }
 }
 
-// --- Click handling: set a walk target + an action on arrival ---
-
 function setWalkTarget(x, y, action) {
   const c = state.cook;
-  const path = simplifyPath(findPath(c.x, c.y, x, y));
-  c.target = { x, y, action: action || null };
-  c.path = path && path.length > 0 ? path : null;
+
+  const path = simplifyPath(findPath(c.x, c.y, x, 600));
+  c.target = { x, y: 600, action: action || null };
+  c.path = path && path.length > 0 ? path.map((p) => ({ x: p.x, y: 600 })) : null;
   c.walking = true;
+  const dist = Math.abs(x - c.x);
+  state.route = { tx: x, ty: 600, queued: !!state.routeQueue, eta: dist / 320 + 0.5 };
 }
 
 function handleClickAction(action) {
@@ -340,16 +357,16 @@ function handleClickAction(action) {
     return;
   }
   if (action.type === 'walk') {
+
     const x = Math.max(ZONES.floor.x, Math.min(ZONES.floor.x + ZONES.floor.w, action.x));
-    const y = Math.max(ZONES.floor.y, Math.min(ZONES.floor.y + ZONES.floor.h, action.y));
-    setWalkTarget(x, y, null);
+    state.routeQueue = null;
+    setWalkTarget(x, 600, null);
     return;
   }
   let stand;
   let run;
   if (action.type === 'bowl') {
-    const bowl = ZONES.bowls[action.index];
-    stand = { x: bowl.x + bowl.w / 2, y: ZONES.stand.pantry.y };
+    stand = ZONES.stand.pantry;
     run = () => doTakeBowl(action.index);
   } else if (action.type === 'finisher') {
     stand = ZONES.stand.plating;
@@ -367,9 +384,7 @@ function handleClickAction(action) {
     stand = ZONES.stand.window;
     run = () => doServeWindowPlate(action.index);
   } else if (action.type === 'bell') {
-    // Ring the bell: serve the first finished plate at the window.
-    // The cook walks to the window stand point first (same as a
-    // window-plate click), so the bell works from anywhere on the floor.
+
     stand = ZONES.stand.window;
     run = () => doServeBell();
   } else if (action.type === 'station') {
@@ -383,13 +398,16 @@ function handleClickAction(action) {
   } else {
     return;
   }
+  if (state.cook.walking && state.cook.target) {
+    state.routeQueue = { x: stand.x, y: stand.y, action: run };
+    if (state.route) state.route.queued = true;
+    return;
+  }
   setWalkTarget(stand.x, stand.y, run);
 }
 
 function handleKeyAction(action) {
-  // Station actions (ticket / bowl / trash / interact) only run while
-  // playing. Mode-transition actions (pause / confirm / restart / mute /
-  // book) are dispatched in every mode so the game can never soft-lock.
+
   if (
     action.type === 'ticket' ||
     action.type === 'bowl' ||
@@ -403,13 +421,21 @@ function handleKeyAction(action) {
     return;
   }
   if (action.type === 'bowl') {
-    const bowl = ZONES.bowls[action.index];
-    setWalkTarget(bowl.x + bowl.w / 2, ZONES.stand.pantry.y, () => doTakeBowl(action.index));
+    setWalkTarget(ZONES.stand.pantry.x, ZONES.stand.pantry.y, () => doTakeBowl(action.index));
     return;
   }
   if (action.type === 'trash') { doTrashKey(); return; }
   if (action.type === 'book') { toggleBook(); return; }
-  if (action.type === 'pause') { togglePause(); return; }
+  if (action.type === 'pause') {
+
+    if (state.mode === 'summary') {
+      state = createGameState(state.seed);
+      state.mode = 'title';
+      return;
+    }
+    togglePause();
+    return;
+  }
   if (action.type === 'mute') {
     setMuted(!isMuted());
     state.muted = isMuted();
@@ -430,7 +456,7 @@ function handleKeyAction(action) {
 function togglePause() {
   if (state.mode === 'playing') state.mode = 'paused';
   else if (state.mode === 'paused') state.mode = 'playing';
-  // P / Esc also closes the recipe book, back to where it was opened from.
+
   else if (state.mode === 'book') state.mode = state.bookFrom || 'playing';
 }
 
@@ -448,6 +474,7 @@ function startShift() {
   state.mode = 'playing';
   spawnFirstTicket(state);
   showToast('Shift dimulai! Ambil Nasi dulu.');
+  showDialogue('Mbak Rina', 'Selamat datang di Warung Sari Rasa! Ambil NASI dulu, masak di KOMPOR, lalu sajikan ke pelanggan.');
 }
 
 function restartShift() {
@@ -456,17 +483,25 @@ function restartShift() {
 
 function endShift() {
   state.mode = 'summary';
+  const prevBest = state.best;
+  const record = prevBest > 0 ? state.coins > prevBest : state.coins >= 1000;
+  state.best = Math.max(state.best, state.coins);
+  const ev = state.event;
   state.summary = {
     coins: state.coins,
     dishes: state.dishesServed,
     bestCombo: state.bestCombo,
     pakBudi: state.pakBudi.served,
     story: PAK_BUDI_STORY,
+    best: state.best,
+    record,
+    stats: state.stats,
+    event: ev ? { cleared: ev.cleared, failed: ev.failed } : null,
+    lives: state.lives,
   };
   playJingle();
 }
 
-// Onboarding prompts (first 30 s): one line at a time, each clears on its step.
 function advancePrompt(event) {
   const p = state.prompt;
   if (p === 0 && event === 'take') state.prompt = 1;
@@ -487,19 +522,11 @@ function promptText() {
   }
 }
 
-// --- Movement + collision ---
-// The cook follows the pathfinder's waypoint list (c.path) in order; when
-// the list is exhausted the cook is at the target and the target's action
-// runs. Each step moves toward the next waypoint. The blockers are still
-// checked per step (a safety net if a waypoint grazes a counter edge), but
-// the path itself already routes around them, so the cook never stalls on
-// a corner.
-
 function moveCook(dt) {
   const c = state.cook;
   const target = c.target;
   if (!target) { c.walking = false; c.path = null; return; }
-  // Next waypoint, or the target itself when the path is done.
+
   let dest = target;
   if (c.path && c.path.length > 0) dest = c.path[0];
   const dx = dest.x - c.x;
@@ -508,21 +535,27 @@ function moveCook(dt) {
   if (dist < 8) {
     if (c.path && c.path.length > 0) {
       c.path.shift();
-      // Arrived at a waypoint — keep walking to the next one.
+
       if (c.path.length > 0) { c.walking = true; return; }
     }
     c.target = null;
     c.path = null;
     c.walking = false;
+    state.route = null;
     if (target.action) target.action();
+    if (state.routeQueue) {
+      const q = state.routeQueue;
+      state.routeQueue = null;
+      setWalkTarget(q.x, q.y, q.action);
+    }
     return;
   }
   const speed = CONFIG.walkSpeed;
   const step = Math.min(dist, speed * dt);
   const nx = c.x + (dx / dist) * step;
   const ny = c.y + (dy / dist) * step;
-  // Axis-separated movement with AABB blockers (slide along counters).
-  const r = 14; // cook radius
+
+  const r = 14;
   let px = nx;
   let py = c.y;
   for (const b of ZONES.blockers) {
@@ -539,7 +572,7 @@ function moveCook(dt) {
       if (Math.abs(dy) < 0.01) qy = c.y;
     }
   }
-  // Clamp to the floor.
+
   qx = Math.max(ZONES.floor.x, Math.min(ZONES.floor.x + ZONES.floor.w, qx));
   qy = Math.max(ZONES.floor.y, Math.min(ZONES.floor.y + ZONES.floor.h, qy));
   c.x = qx;
@@ -549,47 +582,72 @@ function moveCook(dt) {
   else c.dir = dy > 0 ? 0 : 1;
 }
 
-// --- Update ---
+function moveWASD(dt) {
+  if (!input || state.mode !== 'playing' || state.frozen) return false;
+  const keys = input.keys;
+  const left = keys.has('a') || keys.has('arrowleft');
+  const right = keys.has('d') || keys.has('arrowright');
+  if (left === right) return false;
+  const c = state.cook;
+  c.target = null;
+  c.path = null;
+  state.route = null;
+  state.routeQueue = null;
+  const dir = left ? -1 : 1;
+  c.x = Math.max(ZONES.floor.x, Math.min(ZONES.floor.x + ZONES.floor.w, c.x + dir * CONFIG.walkSpeed * dt));
+  c.y = 600;
+  c.walking = true;
+  c.dir = left ? 2 : 3;
+  return true;
+}
 
 function update(dt) {
-  // Input is consumed in EVERY mode (except frozen shot staging) so mode
-  // transitions always work — pause/resume, title start, summary restart,
-  // book open/close. Station actions are gated to playing inside
-  // handleKeyAction / handleClickAction; the timer, orders, burners and
-  // movement below still run only while playing.
+
   if (!state.frozen) {
     let click;
     while ((click = consumeClick(input))) {
       if (state.mode === 'playing') {
         const action = hitTestClick(click.x, click.y);
         handleClickAction(action);
+        state.dialogue = null;
       } else if (state.mode === 'title') {
-        // MULAI MASAK button (540,400,200,56).
+
         if (click.x >= 540 && click.x <= 740 && click.y >= 400 && click.y <= 456) {
           resumeAudio();
           startShift();
         }
       } else if (state.mode === 'summary') {
-        // MAIN LAGI button (540,430,200,56).
-        if (click.x >= 540 && click.x <= 740 && click.y >= 430 && click.y <= 486) {
+
+        if (click.x >= 540 && click.x <= 740 && click.y >= 630 && click.y <= 686) {
           restartShift();
+        } else if (click.x >= 770 && click.x <= 930 && click.y >= 630 && click.y <= 686) {
+          state = createGameState(state.seed);
+          state.mode = 'title';
         }
       }
-      // Paused/book clicks do nothing.
+
     }
     let key;
     while ((key = consumePressed(input))) {
       const action = keyAction(key);
       if (action) handleKeyAction(action);
+      if (state.mode === 'playing') state.dialogue = null;
     }
   }
   if (state.mode !== 'playing' || state.frozen) return;
-  // Toast countdown.
+
+  if (state.dialogue && state.time > state.dialogue.until) state.dialogue = null;
+
+  if (maybeStartEvent(state, state.time)) {
+    showDialogue('Mbak Rina', 'Pak Kumis datang! Kritikus makanan. Nasi Goreng-nya harus SEMPURNA — sajikan sebelum sabarnya habis!');
+    showToast('JAM MAKAN SIANG — RUSH! Pak Kumis minta sempurna!');
+  }
+
   if (state.toastT > 0) {
     state.toastT -= dt;
     if (state.toastT <= 0) state.toast = null;
   }
-  // Shift timer + orders + burners.
+
   state.time += dt;
   const expired = updateOrders(state, dt);
   for (const t of expired) {
@@ -611,6 +669,8 @@ function update(dt) {
       spawnSteam(state, b.x + b.w / 2, b.y, 4);
     } else if (ev.type === 'burnt') {
       state.combo = 0;
+      state.stats.burnt += 1;
+      if (state.stats.burnt === 1) showDialogue('Mas Joko', 'Aduh, gosong! Angkat sebelum bar merah penuh.');
       state.cook.anim = 'sad';
       state.cook.animT = 0;
       showToast('Gosong! Buang ke tempat sampah — kombo putus');
@@ -620,19 +680,20 @@ function update(dt) {
       spawnParticles(state, b.x + b.w / 2, b.y, 8, ['#1A1A1A', '#5A5A5A'], 100);
     }
   }
-  // Sizzle while a burner is active.
+
   const activeBurners = state.burners.filter((b) => b.item && !b.burnt).length;
   setSizzle(activeBurners);
-  // Steam from done burners.
+
   for (let i = 0; i < state.burners.length; i++) {
     const b = state.burners[i];
     if (b.item && b.done && !b.burnt && Math.random() < dt * 4) {
       spawnSteam(state, ZONES.burners[i].x + 55, ZONES.burners[i].y, 1);
     }
   }
-  moveCook(dt);
+
+  if (!moveWASD(dt)) moveCook(dt);
   updateFeedback(state, dt);
-  // Onboarding prompt into the toast slot.
+
   if (state.prompt < 5 && !state.toast) {
     const pt = promptText();
     if (pt) {
@@ -640,22 +701,17 @@ function update(dt) {
       state.toastT = 1;
     }
   }
-  // Shift end.
+
   if (shiftOver(state)) {
     setSizzle(0);
     endShift();
   }
 }
 
-// --- Anim driver (visual only — runs every frame, all modes) ---
-// Walking / carrying override everything; action anims (chop/stir/serve/
-// celebrate/sad) decay back to idle after their duration. Frozen shot
-// staging keeps the staged pose exactly (no animT advance).
-
 function driveAnim(dt) {
   if (state.frozen) return;
   const c = state.cook;
-  // Facing follows the walk direction (side view is always profile).
+
   if (c.dir === 2) c.facing = -1;
   else if (c.dir === 3) c.facing = 1;
   if (c.walking) {
@@ -682,13 +738,6 @@ function driveAnim(dt) {
   c.animT += dt;
 }
 
-// --- Customer sync (presentation only — never a mechanic) ---
-// One customer per ticket slot. A new ticket spawns a customer (slide-in);
-// a served ticket's customer leaves happy (set by doServeWindowPlate), an
-// expired ticket's leaves angry (set by update()). Mood follows the ticket's
-// patience while the customer waits. Frozen shot staging keeps the staged
-// customers exactly (no timer advance).
-
 const SLOT_KINDS = ['sari', 'andi', 'rina'];
 
 function syncCustomersView(dt) {
@@ -698,7 +747,7 @@ function syncCustomersView(dt) {
     if (ticket) {
       if (!cs || cs.ticketId !== ticket.id) {
         cs = {
-          kind: ticket.starred ? 'budi' : SLOT_KINDS[i],
+          kind: ticket.vip === 'kumis' ? 'kumis' : ticket.starred ? 'budi' : SLOT_KINDS[i],
           mood: 'neutral',
           enterT: 0,
           leaveT: 0,
@@ -719,8 +768,6 @@ function syncCustomersView(dt) {
     }
   }
 }
-
-// --- Debug hooks (develop-web-game skill) ---
 
 window.render_game_to_text = function renderGameToText() {
   const payload = {
@@ -750,6 +797,9 @@ window.render_game_to_text = function renderGameToText() {
     dishesServed: state.dishesServed,
     bestCombo: state.bestCombo,
     prompt: state.prompt,
+    lives: state.lives,
+    streak: state.streak,
+    event: state.event ? { vip: state.event.vip, cleared: state.event.cleared, failed: state.event.failed } : null,
   };
   return JSON.stringify(payload);
 };
@@ -760,20 +810,17 @@ window.advanceTime = function advanceTime(ms) {
   driveAnim(ms / 1000);
   syncCustomersView(ms / 1000);
   if (view) syncScene(view, state, ms / 1000);
-  // Force one render (delta 0 = no extra mechanics step) so a screenshot
-  // taken right after advanceTime shows the stepped state.
+
   if (game) game.step(performance.now(), 0);
 };
-
-// --- Phaser boot ---
 
 let shotMode = false;
 
 function createScene() {
-  // `this` is the Phaser Scene.
+
   input = createInput(this);
   view = buildScene(this, state);
-  // Re-apply the letterbox fit (Phaser may have reset the canvas style).
+
   if (typeof window.fit === 'function') window.fit();
   window.__phaserReady = true;
 }
@@ -781,9 +828,7 @@ function createScene() {
 function updateScene(time, delta) {
   const dt = Math.min(0.25, delta / 1000);
   frameCount += 1;
-  // Debug hook: window.__pauseLoop freezes the mechanics stepping (the
-  // rAF loop) so a test can drive the game deterministically via
-  // advanceTime() alone. Rendering / anim / customer sync keep running.
+
   if (!window.__pauseLoop) {
     acc += dt;
     let guard = 0;
@@ -796,13 +841,12 @@ function updateScene(time, delta) {
   driveAnim(dt);
   syncCustomersView(dt);
   if (view) syncScene(view, state, dt);
-  // Shot mode: after 2 frames at least one render has completed, so the
-  // staged state is on the canvas and a screenshot is safe.
+
   if (shotMode && frameCount >= 2 && !window.__shotReady) window.__shotReady = true;
 }
 
 export function startGame() {
-  // Shot mode: ?shot=cover|chop|serve|angle&seed=N — deterministic staged state, frozen.
+
   const params = new URLSearchParams(window.location.search);
   const shot = params.get('shot');
   const seed = Number(params.get('seed') || 7);
@@ -811,7 +855,7 @@ export function startGame() {
   if (shot) {
     stageShot(state, shot);
   }
-  // Title screen over the kitchen: stage a quiet kitchen behind it.
+
   state.mode = shot ? state.mode : 'title';
   game = new Phaser.Game({
     type: Phaser.CANVAS,
@@ -824,8 +868,8 @@ export function startGame() {
     fps: { target: 60 },
     scene: { create: createScene, update: updateScene },
   });
-  window.__game = game; // debug hook (scene-graph inspection)
-  // Debug hook: live read of the current game state (for tests / screenshots).
+  window.__game = game;
+
   Object.defineProperty(window, '__state', { get: () => state, configurable: true });
 }
 

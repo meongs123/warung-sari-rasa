@@ -1,16 +1,6 @@
-// input.js — Input via Phaser: pointerdown / pointermove / keyboard.
-// Click-a-station is PRIMARY (click station/bowl/ticket/plate = walk there +
-// auto-interact on arrival). WASD/arrows are dropped (Revision 1); cheap
-// shortcuts stay (1-3 tickets, Z-N bowls, E/Space, Q, K, P/Esc, M).
-// The queues (clicks[] / pressed[]) and the consumption functions are the
-// same shape as the DOM version — main.js's update() consumes them exactly
-// as before, so the fixed mode-gating behaviour (input in ALL modes) is
-// preserved. Phaser pointer.x/y are already logical 1280x720 coords
-// (the Scale Manager handles the CSS letterbox), so no conversion is needed.
-
+// warung-sari-rasa v3.0 — input.js
 import { ZONES, inRect } from './zones.js';
 
-// Logical canvas size.
 export const LOGICAL_W = 1280;
 export const LOGICAL_H = 720;
 
@@ -18,8 +8,8 @@ export function createInput(scene) {
   const input = {
     keys: new Set(),
     mouse: { x: 0, y: 0, down: false },
-    clicks: [], // queued {x, y} in logical coords
-    pressed: [], // queued key strings (consumed once)
+    clicks: [],
+    pressed: [],
   };
 
   scene.input.on('pointerdown', (pointer) => {
@@ -57,14 +47,6 @@ export function consumePressed(input) {
   return input.pressed.shift() || null;
 }
 
-// What did the player click? Returns an action descriptor, or null.
-// Priority (side view): bubbles → customers → bowls → finishers → plates →
-// burners → bin → bell → windowPlates → stations → window lane → walk.
-// Hit-test priority (first match wins): bubbles, customers, bowls,
-// finishers, plates, burners, bin, bell, window plates, stations, lane,
-// then open floor (walk). The order matters — a bubble sits above a
-// customer, a burner sits on its station, and the window plates sit on
-// the counter — so the smaller, more specific target is tested first.
 export function hitTestClick(x, y) {
   for (let i = 0; i < ZONES.tickets.length; i++) {
     if (inRect(x, y, ZONES.tickets[i])) return { type: 'ticket', slot: i };
@@ -88,31 +70,24 @@ export function hitTestClick(x, y) {
   if (inRect(x, y, ZONES.bell)) return { type: 'bell' };
   if (inRect(x, y, ZONES.windowPlates[0])) return { type: 'windowPlate', index: 0 };
   if (inRect(x, y, ZONES.windowPlates[1])) return { type: 'windowPlate', index: 1 };
-  if (inRect(x, y, ZONES.stationClick.stove)) return { type: 'station', station: 'stove' };
-  if (inRect(x, y, ZONES.stationClick.chopping)) return { type: 'station', station: 'chopping' };
-  if (inRect(x, y, ZONES.stationClick.plating)) return { type: 'station', station: 'plating' };
-  if (inRect(x, y, ZONES.stationClick.window)) return { type: 'station', station: 'window' };
-  if (inRect(x, y, ZONES.stationClick.pantry)) return { type: 'station', station: 'pantry' };
-  if (inRect(x, y, ZONES.lane)) return { type: 'station', station: 'window' };
+  const sc = ZONES.stationClick;
+  if (inRect(x, y, sc.stove)) return { type: 'station', station: 'stove' };
+  if (inRect(x, y, sc.chopping) || inRect(x, y, sc.chopPanel)) return { type: 'station', station: 'chopping' };
+  if (inRect(x, y, sc.plating) || inRect(x, y, sc.platePanel)) return { type: 'station', station: 'plating' };
+  if (inRect(x, y, sc.pass)) return { type: 'bell' };
+  if (inRect(x, y, sc.window)) return { type: 'station', station: 'window' };
+  if (inRect(x, y, sc.pantry)) return { type: 'station', station: 'pantry' };
   return { type: 'walk', x, y };
 }
 
-// Map a pressed key to an action descriptor, or null.
-// Book is 'k' (not 'b': 'b' is the Sayur bowl key — bowlKeys is checked
-// first, so a book on 'b' would be dead code).
 export function keyAction(key) {
-  if (key === '1' || key === '2' || key === '3') {
-    return { type: 'ticket', slot: Number(key) - 1 };
-  }
+  if (key >= '1' && key <= '6') return { type: 'bowl', index: Number(key) - 1 };
   if (key === 'k') return { type: 'book' };
-  const bowlKeys = ['z', 'x', 'c', 'v', 'b', 'n'];
-  const bi = bowlKeys.indexOf(key);
-  if (bi >= 0) return { type: 'bowl', index: bi };
   if (key === 'q') return { type: 'trash' };
   if (key === 'p' || key === 'escape') return { type: 'pause' };
   if (key === 'm') return { type: 'mute' };
   if (key === 'e' || key === ' ') return { type: 'interact' };
   if (key === 'enter') return { type: 'confirm' };
-  if (key === 'r') return { type: 'restart' };
+  if (key === 'r' || key === 's') return { type: 'restart' };
   return null;
 }

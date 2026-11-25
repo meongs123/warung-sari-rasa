@@ -1,10 +1,4 @@
-// stove.js — placeOnBurner(), liftFromBurner(), updateBurners(dt).
-// Two burners = the only parallelism. Cook timers, green zone, burnt.
-// Leaving an item past the green zone + grace burns it: it cannot be plated,
-// must be trashed, and the burn breaks the combo the moment it burns.
-// A burnt burner must be cleared (click it) before it can be used again.
-// must be trashed, and the burn breaks the combo the moment it burns.
-
+// warung-sari-rasa v3.0 — stove.js
 import { CONFIG } from './config.js';
 import { INGREDIENTS } from './config.js';
 import { firstHandItem, removeFromHand, takeIntoHand } from './state.js';
@@ -22,7 +16,6 @@ export function doneBurner(state) {
   return state.burners.findIndex((b) => b.item && b.done && !b.burnt);
 }
 
-// Place a cookable item from hand onto a free burner.
 export function placeOnBurner(state, burnerIndex = -1) {
   const item = firstHandItem(state);
   if (!item) return { ok: false, why: 'empty-hands' };
@@ -39,7 +32,6 @@ export function placeOnBurner(state, burnerIndex = -1) {
   return { ok: true, burner: idx };
 }
 
-// Lift a done item off a burner into hand.
 export function liftFromBurner(state, burnerIndex = -1) {
   let idx = burnerIndex;
   if (idx < 0) idx = doneBurner(state);
@@ -54,7 +46,6 @@ export function liftFromBurner(state, burnerIndex = -1) {
   return { ok: true, item: cooked, burner: idx };
 }
 
-// Clear a burnt burner (trash). Returns the burnt item kind, or null.
 export function clearBurntBurner(state, burnerIndex) {
   const burner = state.burners[burnerIndex];
   if (!burner || !burner.item || !burner.burnt) return null;
@@ -63,7 +54,6 @@ export function clearBurntBurner(state, burnerIndex) {
   return kind;
 }
 
-// Advance burner timers. Returns a list of events: [{type:'done'|'burnt', burner, kind}].
 export function updateBurners(state, dt) {
   const events = [];
   for (let i = 0; i < state.burners.length; i++) {

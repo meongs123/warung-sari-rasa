@@ -1,26 +1,13 @@
-// A* pathfinding on a coarse grid, so the cook walks AROUND the counters
-// instead of getting stuck on a corner. The kitchen floor is open except for
-// the counters (the blockers from zones.js); a straight line to a station
-// often crosses the prep-counter island, and axis-separated sliding stalls
-// there. A* on a 20 px grid is cheap (the floor is ~35x24 cells) and the
-// path is a list of pixel waypoints the cook follows in order.
-//
-// Grid cells are walkable when their centre is inside the floor and outside
-// every blocker. Movement is 4-directional (up/down/left/right) so the path
-// is a sequence of straight runs; the cook moves between waypoints at the
-// normal walk speed and the path is invisible in play.
-
+// warung-sari-rasa v3.0 — pathfind.js
 import { ZONES } from './zones.js';
 
 const BLOCKERS = ZONES.blockers;
 
 const CELL = 20;
-const FLOOR = { x: 275, y: 95, w: 700, h: 475 }; // walkable floor bounds
-const COOK_R = 16; // cook radius + margin — a cell is walkable only when a
-// circle this big centred on it clears every blocker, so the cook's body
-// never clips a counter edge while following the path
+const FLOOR = { x: 16, y: 560, w: 1248, h: 80 };
 
-// Grid dimensions (derived from the floor bounds).
+const COOK_R = 16;
+
 const COLS = Math.ceil(FLOOR.w / CELL);
 const ROWS = Math.ceil(FLOOR.h / CELL);
 
@@ -39,7 +26,7 @@ function cellWalkable(col, row) {
   if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false;
   const p = cellCenter(col, row);
   for (const b of BLOCKERS) {
-    // Expanded blocker: the cook's circle (radius COOK_R) must clear it.
+
     if (
       p.x + COOK_R > b.x && p.x - COOK_R < b.x + b.w &&
       p.y + COOK_R > b.y && p.y - COOK_R < b.y + b.h
@@ -52,14 +39,10 @@ function key(col, row) {
   return row * COLS + col;
 }
 
-// Find a path from (fromX, fromY) to (toX, toY). Returns an array of
-// {x, y} waypoints (pixel coordinates, cell centres), NOT including the
-// start point, including the destination. Returns null when no path exists.
 export function findPath(fromX, fromY, toX, toY) {
   const start = pointToCell(fromX, fromY);
   const goal = pointToCell(toX, toY);
-  // If the destination cell is blocked (a stand point inside a blocker),
-  // fall back to the nearest walkable cell.
+
   let goalCell = goal;
   if (!cellWalkable(goal.col, goal.row)) {
     let best = null;
@@ -81,7 +64,7 @@ export function findPath(fromX, fromY, toX, toY) {
   const heuristic = (c, r) => Math.abs(c - goalCell.col) + Math.abs(r - goalCell.row);
 
   while (open.length > 0) {
-    // Lowest f first (linear scan is fine at this grid size).
+
     let bestIdx = 0;
     for (let i = 1; i < open.length; i++) {
       if (open[i].f < open[bestIdx].f) bestIdx = i;
@@ -89,14 +72,14 @@ export function findPath(fromX, fromY, toX, toY) {
     const current = open.splice(bestIdx, 1)[0];
     openSet.delete(key(current.col, current.row));
     if (current.col === goalCell.col && current.row === goalCell.row) {
-      // Reconstruct the path.
+
       const path = [];
       let node = current;
       while (node.parent) {
         path.unshift(cellCenter(node.col, node.row));
         node = node.parent;
       }
-      // The final waypoint is the exact destination, not the cell centre.
+
       path.push({ x: toX, y: toY });
       return path;
     }
@@ -128,9 +111,6 @@ export function findPath(fromX, fromY, toX, toY) {
   return null;
 }
 
-// Simplify a path by dropping waypoints that are collinear with their
-// neighbours (a straight run becomes one waypoint). Keeps the path short
-// so the cook does not zig-zag through grid cells.
 export function simplifyPath(path) {
   if (!path || path.length < 3) return path || [];
   const out = [path[0]];

@@ -1,7 +1,4 @@
-// random.js — seeded RNG so staged shots and ticket spawns are reproducible.
-// mulberry32 is a small, fast, well-tested PRNG; the seed lives in state
-// so a staged shot (seed 7) always lays out the same tickets.
-
+// warung-sari-rasa v3.0 — random.js
 export function mulberry32(seed) {
   let a = seed >>> 0;
   return function next() {

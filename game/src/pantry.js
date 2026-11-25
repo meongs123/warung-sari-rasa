@@ -1,7 +1,4 @@
-// pantry.js — takeIngredient(state, bowl): take one pantry ingredient into hand.
-// Hands hold max 2 items; a third take is refused with a shake + toast.
-// The take is instant — the walk to the pantry is the cost, not the take.
-
+// warung-sari-rasa v3.0 — pantry.js
 import { INGREDIENTS } from './config.js';
 import { handsFull, takeIntoHand } from './state.js';
 
@@ -20,7 +17,6 @@ export function takeIngredient(state, index) {
   return { ok: true, item, bowl };
 }
 
-// Finisher bottles live on the plating counter (one click, unlimited, no hand slot).
 export function finisherById(id) {
   return { kecap: 'Kecap', saus: 'Saus Kacang', es: 'Es Batu' }[id] || id;
 }

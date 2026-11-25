@@ -1,10 +1,4 @@
-// feedback.js — feedback(tier, x, y): particles, pops, shake (trauma),
-// floating coin text. Every event fires its bundle from one call.
-// Shake is camera-offset only (never moves the cook or stations); every scale
-// of feedback maps to the event's importance (serve > take > chop).
-// tween ends exactly at rest value 1.0; no hit-stop (a cooking game must never
-// freeze input); particles are small canvas shapes, capped (~120 live).
-
+// warung-sari-rasa v3.0 — feedback.js
 export function spawnParticles(state, x, y, n, colors, speed = 120) {
   for (let i = 0; i < n; i++) {
     if (state.particles.length >= 120) return;
@@ -53,7 +47,7 @@ export function updateFeedback(state, dt) {
     p.t += dt;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    p.vy += 140 * dt; // gentle gravity for leaves/chunks; steam rises (vy negative, slows)
+    p.vy += 140 * dt;
     if (p.shape === 'steam') p.vy -= 40 * dt;
   }
   state.particles = state.particles.filter((p) => p.t < p.life);
@@ -62,7 +56,6 @@ export function updateFeedback(state, dt) {
   state.shake = Math.max(0, state.shake - dt * 1.6);
 }
 
-// feedback(tier, x, y): the one call every event uses.
 export function feedback(state, tier, x, y, opts = {}) {
   if (tier === 'small') {
     spawnParticles(state, x, y, 4, opts.colors || ['#FFF3D6', '#F5C542'], 80);

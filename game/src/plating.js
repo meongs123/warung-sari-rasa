@@ -1,14 +1,7 @@
-// plating.js — placeOnPlate(), addFinisher(), plateMatchesTicket().
-// Assembly + validation. A plate with the right items (in any order) + the
-// right finisher = a finished dish. Wrong item = refused (flash red, item
-// stays in hand). The plate remembers a picky variant so the window can
-// refuse a standard dish served to a picky ticket.
-// stays in hand). Overfilling a finished plate is refused.
-
+// warung-sari-rasa v3.0 — plating.js
 import { RECIPES } from './config.js';
 import { firstHandItem, removeFromHand } from './state.js';
 
-// The components a ticket's dish needs, after its picky skip is applied.
 export function requiredComponents(ticket) {
   const recipe = RECIPES[ticket.dish];
   if (!recipe) return { items: [], finisher: null };
@@ -29,7 +22,6 @@ function hasComponent(items, comp) {
   return items.some((i) => i.kind === comp.kind && i.prep === comp.prep);
 }
 
-// Does this plate (items + finisher) complete the given ticket's dish?
 export function plateMatchesTicket(plate, ticket) {
   const need = requiredComponents(ticket);
   if (plate.items.length !== need.items.length) return false;
@@ -40,8 +32,6 @@ export function plateMatchesTicket(plate, ticket) {
   return plate.finisher === null;
 }
 
-// After a change, mark the plate done if it now matches an open ticket.
-// Prefers the active ticket, then any other open ticket. Returns the dish id or null.
 export function refreshPlateDone(state, plateIndex) {
   const plate = state.plates[plateIndex];
   if (!plate || plate.done) return plate ? plate.dish : null;
@@ -62,7 +52,6 @@ export function refreshPlateDone(state, plateIndex) {
   return null;
 }
 
-// The dish this plate is being built toward (from its first item), or null.
 export function plateTargetDish(state, plate) {
   if (!plate.items.length) return null;
   for (const t of state.tickets) {
@@ -73,7 +62,6 @@ export function plateTargetDish(state, plate) {
   return null;
 }
 
-// Place the first hand item onto a plate slot.
 export function placeOnPlate(state, plateIndex = -1) {
   const item = firstHandItem(state);
   if (!item) return { ok: false, why: 'empty-hands' };
@@ -85,7 +73,7 @@ export function placeOnPlate(state, plateIndex = -1) {
   if (idx < 0) return { ok: false, why: 'plates-full' };
   const plate = state.plates[idx];
   if (plate.done) return { ok: false, why: 'plate-done' };
-  // The item must be a component of the plate's target dish (or set it).
+
   const target = plateTargetDish(state, plate);
   if (target) {
     const need = requiredComponents({ dish: target, picky: platePickyFor(state, plate) });
@@ -96,7 +84,7 @@ export function placeOnPlate(state, plateIndex = -1) {
       return { ok: false, why: 'already-on-plate' };
     }
   } else {
-    // First item on an empty plate: it must belong to some open ticket.
+
     const belongs = state.tickets.some((t) => {
       if (!t) return false;
       const need = requiredComponents(t);
@@ -111,7 +99,6 @@ export function placeOnPlate(state, plateIndex = -1) {
   return { ok: true, plate: idx, dish };
 }
 
-// The picky variant the plate's target ticket carries (for validation).
 function platePickyFor(state, plate) {
   for (const t of state.tickets) {
     if (!t) continue;
@@ -121,7 +108,6 @@ function platePickyFor(state, plate) {
   return null;
 }
 
-// Add a finisher to a plate (one click on the bottle). No hand slot used.
 export function addFinisher(state, finisherId, plateIndex = -1) {
   let idx = plateIndex;
   if (idx < 0) {
@@ -131,7 +117,7 @@ export function addFinisher(state, finisherId, plateIndex = -1) {
   const plate = state.plates[idx];
   if (plate.done) return { ok: false, why: 'plate-done' };
   if (plate.finisher) return { ok: false, why: 'finisher-set' };
-  // The finisher must belong to the plate's target dish (or a picky variant).
+
   const target = plateTargetDish(state, plate);
   const ok = state.tickets.some((t) => {
     if (!t) return false;
@@ -146,7 +132,6 @@ export function addFinisher(state, finisherId, plateIndex = -1) {
   return { ok: true, plate: idx, dish };
 }
 
-// Pick up a finished plate to carry it to the window.
 export function takePlate(state, plateIndex) {
   const plate = state.plates[plateIndex];
   if (!plate || !plate.done) return { ok: false, why: 'not-ready' };
@@ -163,7 +148,6 @@ export function takePlate(state, plateIndex) {
   return { ok: true, dish: state.cook.plate.dish };
 }
 
-// Trash a plate on the plating counter (Q on the plate).
 export function trashPlate(state, plateIndex) {
   const plate = state.plates[plateIndex];
   if (!plate || (!plate.items.length && !plate.finisher)) return { ok: false, why: 'empty' };
