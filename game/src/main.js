@@ -630,8 +630,8 @@ function update(dt) {
     let key;
     while ((key = consumePressed(input))) {
       const action = keyAction(key);
-      if (action) handleKeyAction(action);
       if (state.mode === 'playing') state.dialogue = null;
+      if (action) handleKeyAction(action);
     }
   }
   if (state.mode !== 'playing' || state.frozen) return;
