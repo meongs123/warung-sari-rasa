@@ -528,9 +528,22 @@ export function syncScene(view, state, dt) {
     if (!wp) { tag.setVisible(false); return; }
     const z = ZONES.windowPlates[i];
     tag.setVisible(true);
-    // y - 10 sits just below the order card's bottom edge (card ends ~y142)
-    // in the clear gap above the counter, so the tag never hides behind a card.
-    tag.setPosition(z.x + z.w / 2, z.y - 10);
+    // R2: y + 2 puts the tag fully below the order card's bottom edge
+    // (card ends ~y142). y - 10 left the tag's top touching the card edge,
+    // so at a glance the top of READY read as sliced flat by the card.
+    // Fix pass 4: centring the tag on the plate put it exactly on the
+    // gold diamond (window-plate marker, centred on the plate, spans
+    // y149-169) — the diamond covered the "A", so the tag read "RE◆DY".
+    // The 14px tag cannot sit on the diamond, so it is nudged OFF it,
+    // outward from the middle customer (shoulders span x595-685, y156-172,
+    // between the two plates): slot 0 left 40px (tag 502-548, 9px clear of
+    // the diamond at 557), slot 1 right 35px (tag 737-783, 4px clear of its
+    // diamond at 733 and ~5px clear of the bell at ~788). Symmetric shifts
+    // are impossible — slot 0 right or slot 1 left runs the tag into the
+    // customer's shoulders. Below the plate is worse: slot 1's tag would
+    // sit on the finisher bottles (y221+).
+    const dx = i === 0 ? -40 : 35;
+    tag.setPosition(z.x + z.w / 2 + dx, z.y + 2);
   });
 
   const chopItem = nextChoppable(state) || state.cook.hands.find((h) => h && h.prep === 'chopped');

@@ -34,9 +34,13 @@ function nextStep(state) {
 // (Same state as nextStep, but without the "Lagi pegang" prefix, so the
 // panel reads as a ticket: dish on one line, action on the next.)
 function docketInfo(state) {
+  // R4: when the cook carries a plate, the docket names the CARRIED dish —
+  // the plate in hand is the dish being served, not the selected ticket's.
+  // (The step already branched on cook.plate; only the dish was wrong.)
+  const carried = state.cook.plate ? RECIPES[state.cook.plate.dish] : null;
   const ticket = state.tickets[state.selectedTicket] || state.tickets.find(Boolean);
-  if (!ticket) return { dish: '—', step: 'Tunggu pesanan masuk.', num: '' };
-  const r = RECIPES[ticket.dish];
+  if (!carried && !ticket) return { dish: '—', step: 'Tunggu pesanan masuk.', num: '' };
+  const r = carried || RECIPES[ticket.dish];
   const hands = state.cook.hands.filter(Boolean);
   const raw = hands.find((h) => h.prep === 'raw');
   let step;
@@ -50,7 +54,7 @@ function docketInfo(state) {
       : `Masak ${ing} di KOMPOR`;
   } else if (hands.find((h) => h.prep !== 'raw')) step = 'Rakit di meja (klik RAKIT)!';
   else step = `Ambil ${ING_NAME[r.plate[0].kind]} di RAK BAHAN`;
-  return { dish: r.name, step, num: `Nº ${String(ticket.id + 1).padStart(2, '0')}` };
+  return { dish: r.name, step, num: carried || !ticket ? '' : `Nº ${String(ticket.id + 1).padStart(2, '0')}` };
 }
 
 export function buildHUD(scene) {

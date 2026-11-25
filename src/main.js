@@ -357,6 +357,10 @@ function handleClickAction(action) {
     }
     return;
   }
+  // R3: the docket's "Resep [K] ↗" link opens the recipe book — the
+  // 'book' branch was missing, so docket clicks fell through to the
+  // final else and did nothing (K worked because handleKeyAction has it).
+  if (action.type === 'book') { toggleBook(); return; }
   if (action.type === 'walk') {
 
     const x = Math.max(ZONES.floor.x, Math.min(ZONES.floor.x + ZONES.floor.w, action.x));
@@ -614,6 +618,12 @@ function update(dt) {
         const action = hitTestClick(click.x, click.y);
         handleClickAction(action);
         state.dialogue = null;
+      } else if (state.mode === 'book') {
+        // R3 (toggle back): clicks are only routed in 'playing' mode, so a
+        // docket click while the book is open was swallowed — route it so
+        // the "Resep [K] ↗" link closes the book again. Other clicks in
+        // book mode are ignored (the book panel covers the centre).
+        if (hitTestClick(click.x, click.y).type === 'book') toggleBook();
       } else if (state.mode === 'title') {
 
         if (click.x >= 540 && click.x <= 740 && click.y >= 400 && click.y <= 456) {

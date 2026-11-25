@@ -133,11 +133,14 @@ export function stageServe(state) {
   baseStaged(state, 108, 175, 3);
   const teh = makeTicket(state, 'teh', 60, null, false);
   teh.patience = 55;
-  const nasi = makeTicket(state, 'nasi', 45, null, false);
-  nasi.patience = 30;
+  // R4: the selected ticket is SATE — the dish the cook carries — so the
+  // RAKIT checklist (selected ticket's recipe) and the docket (carried
+  // plate, via docketInfo) agree: both say Sate Ayam.
+  const sate = makeTicket(state, 'sate', 36, null, false);
+  sate.patience = 25;
   const mie = makeTicket(state, 'mie', 45, null, false);
   mie.patience = 18;
-  state.tickets = [teh, nasi, mie];
+  state.tickets = [teh, sate, mie];
   state.selectedTicket = 1;
 
   state.cook.x = 420;
@@ -188,12 +191,17 @@ export function stageSecondAngle(state) {
   state.cook.animT = 0.3;
   state.cook.hands = [null, null];
 
-  // F5 (revised): zoom 1.05x + centre (618,343) — the HUD top/bottom bars
-  // cover ~53px of the zoomed world at each edge, so a higher zoom cannot
-  // show the order cards (y 60) AND the cook's feet (y 630) at once
-  // (needs zoom < 1.074). At 1.05x the cards, menu names + prices, pantry
-  // and cook are all whole; the framing is a slight zoom + shift.
-  state.camera = { x: 618, y: 343, zoom: 1.05 };
+  // R1: zoom 1.0, centre (605,355) — the 1.05x zoom misaligned the
+  // world-space menu board + cook against the screen-fixed docket +
+  // status bar (docket covered the "Es Teh Melati" row, the menu's right
+  // edge ran off the viewport, the cook's feet hid behind the status bar).
+  // At zoom 1.0 the offset is the only correction: centre (605,355) puts
+  // the menu panel's right edge (world 1240) at screen 1275 (inside, not
+  // exactly on the 1280 edge as (600,350) would), the teh row at screen
+  // 467 (clear of the docket top at 492), and the cook's feet (world 630)
+  // at screen 635 (clear of the status bar at 640) while the order cards
+  // (world 60) sit at screen 65 (clear of the top bar at 56).
+  state.camera = { x: 605, y: 355, zoom: 1.0 };
   return state;
 }
 
