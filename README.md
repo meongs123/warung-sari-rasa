@@ -11,7 +11,7 @@ An original Indonesian street-food cooking game. You are the cook of a small nei
 ## How to play
 
 - **Click a station** to walk there and use it (mouse-only play works).
-- **1–3** select a ticket; **Z–N** take a pantry bowl; **E / Space** interact with the station you face; **Q** trash; **B** recipe book; **P / Esc** pause; **M** mute.
+- **1–3** select a ticket; **Z–N** take a pantry bowl; **E / Space** interact with the station you face; **Q** trash; **K** recipe book; **P / Esc** pause; **M** mute.
 - Four dishes: Nasi Goreng (fried rice), Mie Goreng (fried noodles), Sate Ayam (chicken satay), Es Teh Melati (iced jasmine tea). Each is a different chain of the same verbs: take, chop, cook, assemble, serve.
 - A dish left on the burner past its green zone burns — trash it, or it breaks your combo. A ticket that runs out of patience leaves angry and resets your combo.
 - Picky orders (last 90 seconds) ask you to skip one step (TANPA TELUR, TANPA KECAP) for +25% pay. Serve the standard dish to a picky ticket and the window refuses it.

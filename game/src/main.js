@@ -1,6 +1,6 @@
 // main.js — startGame(): boot, game loop (fixed timestep), screen stack,
 // wires everything together. Click-to-walk is primary; E/Space interacts with
-// the faced station; 1–3 tickets, Z–N bowls, Q trash, B book, P/Esc pause,
+// the faced station; 1–3 tickets, Z–N bowls, Q trash, K book, P/Esc pause,
 // M mute. Debug hooks: window.render_game_to_text + window.advanceTime.
 
 import { CONFIG } from './config.js';
@@ -11,7 +11,7 @@ import { takeIngredient } from './pantry.js';
 import { chopItem } from './chopping.js';
 import { placeOnBurner, liftFromBurner, updateBurners, clearBurntBurner, doneBurner, freeBurner } from './stove.js';
 import { placeOnPlate, addFinisher, takePlate, trashPlate, refreshPlateDone } from './plating.js';
-import { servePlate } from './serving.js';
+import { serveWindowPlate, placeAtWindow } from './serving.js';
 import { spawnFirstTicket, updateOrders, selectTicket } from './orders.js';
 import { PAK_BUDI_STORY } from './regular.js';
 import { render } from './render.js';
@@ -55,6 +55,7 @@ function refuse(why) {
     'no-plate': 'Tidak ada piring yang dirakit',
     'not-ready': 'Piring belum jadi',
     'no-match': 'Tidak ada pesanan yang cocok',
+    'window-full': 'Jendela penuh! Sajikan dulu',
     'wrong-picky': 'Bukan pesanan! (cek tag merah)',
     'no-dish': 'Bukan hidangan',
   };
@@ -162,8 +163,30 @@ function doFinisher(finisherIndex) {
 }
 
 function doWindow() {
+  // Place the carried finished plate at the window (READY). Serving is a
+  // separate step: click the READY plate to ring the bell (doServeWindowPlate).
   if (!state.cook.plate) return showToast('Bawa piring jadi ke sini');
-  const res = servePlate(state);
+  const res = placeAtWindow(state);
+  if (!res.ok) return refuse(res.why);
+  playPlok();
+  showToast('Piring siap di jendela — klik piringnya untuk sajikan!');
+}
+
+// Ring the bell: serve the finished plate sitting at the window slot.
+// Clicking an empty slot while carrying places the plate there instead.
+function doServeWindowPlate(slot) {
+  const plate = state.windowPlates[slot];
+  if (!plate) {
+    if (state.cook.plate) {
+      const res = placeAtWindow(state, slot);
+      if (!res.ok) return refuse(res.why);
+      playPlok();
+      showToast('Piring siap di jendela — klik piringnya untuk sajikan!');
+      return;
+    }
+    return showToast('Bawa piring jadi ke sini');
+  }
+  const res = serveWindowPlate(state, slot);
   if (!res.ok) {
     if (res.why === 'wrong-picky') {
       state.combo = 0;
@@ -174,8 +197,8 @@ function doWindow() {
     }
     return refuse(res.why);
   }
-  const wx = ZONES.windowPlates[0].x + 45;
-  const wy = ZONES.windowPlates[0].y;
+  const wx = ZONES.windowPlates[slot].x + 45;
+  const wy = ZONES.windowPlates[slot].y;
   feedback(state, 'large', wx, wy, {
     text: `+Rp ${res.coins}`,
     sub: res.tip > 0 ? `termasuk tip Rp ${res.tip}` : '',
@@ -209,6 +232,15 @@ function doBin() {
     trashPlate(state, idx);
     playTake();
     showToast('Piring dibuang');
+    return;
+  }
+  // Last resort: trash a finished plate sitting at the window (READY) that
+  // no open ticket wants anymore.
+  const widx = state.windowPlates.findIndex(Boolean);
+  if (widx >= 0) {
+    state.windowPlates[widx] = null;
+    playTake();
+    showToast('Piring di jendela dibuang');
   }
 }
 
@@ -308,7 +340,7 @@ function handleClickAction(action) {
     run = () => doBin();
   } else if (action.type === 'windowPlate') {
     stand = ZONES.stand.window;
-    run = () => doWindow();
+    run = () => doServeWindowPlate(action.index);
   } else if (action.type === 'station') {
     const s = action.station;
     if (s === 'stove') { stand = ZONES.stand.stove; run = () => doStove(); }
@@ -324,6 +356,17 @@ function handleClickAction(action) {
 }
 
 function handleKeyAction(action) {
+  // Station actions (ticket / bowl / trash / interact) only run while
+  // playing. Mode-transition actions (pause / confirm / restart / mute /
+  // book) are dispatched in every mode so the game can never soft-lock.
+  if (
+    action.type === 'ticket' ||
+    action.type === 'bowl' ||
+    action.type === 'trash' ||
+    action.type === 'interact'
+  ) {
+    if (state.mode !== 'playing') return;
+  }
   if (action.type === 'ticket') {
     if (selectTicket(state, action.slot)) playTake();
     return;
@@ -356,11 +399,17 @@ function handleKeyAction(action) {
 function togglePause() {
   if (state.mode === 'playing') state.mode = 'paused';
   else if (state.mode === 'paused') state.mode = 'playing';
+  // P / Esc also closes the recipe book, back to where it was opened from.
+  else if (state.mode === 'book') state.mode = state.bookFrom || 'playing';
 }
 
 function toggleBook() {
-  if (state.mode === 'playing') state.mode = 'book';
-  else if (state.mode === 'book') state.mode = 'playing';
+  if (state.mode === 'playing' || state.mode === 'paused') {
+    state.bookFrom = state.mode;
+    state.mode = 'book';
+  } else if (state.mode === 'book') {
+    state.mode = state.bookFrom || 'playing';
+  }
 }
 
 function startShift() {
@@ -472,18 +521,33 @@ function moveCook(dt) {
 // --- Update ---
 
 function update(dt) {
+  // Input is consumed in EVERY mode (except frozen shot staging) so mode
+  // transitions always work — pause/resume, title start, summary restart,
+  // book open/close. Station actions are gated to playing inside
+  // handleKeyAction / handleClickAction; the timer, orders, burners and
+  // movement below still run only while playing.
+  if (!state.frozen) {
+    let click;
+    while ((click = consumeClick(input))) {
+      if (state.mode === 'playing') {
+        const action = hitTestClick(click.x, click.y);
+        handleClickAction(action);
+      } else if (state.mode === 'summary') {
+        // MAIN LAGI button (540,430,200,56).
+        if (click.x >= 540 && click.x <= 740 && click.y >= 430 && click.y <= 486) {
+          restartShift();
+        }
+      }
+      // Title clicks are handled by the startGame() listener (MULAI MASAK);
+      // paused/book clicks do nothing.
+    }
+    let key;
+    while ((key = consumePressed(input))) {
+      const action = keyAction(key);
+      if (action) handleKeyAction(action);
+    }
+  }
   if (state.mode !== 'playing' || state.frozen) return;
-  // Input: clicks + keys.
-  let click;
-  while ((click = consumeClick(input))) {
-    const action = hitTestClick(click.x, click.y);
-    handleClickAction(action);
-  }
-  let key;
-  while ((key = consumePressed(input))) {
-    const action = keyAction(key);
-    if (action) handleKeyAction(action);
-  }
   // Toast countdown.
   if (state.toastT > 0) {
     state.toastT -= dt;

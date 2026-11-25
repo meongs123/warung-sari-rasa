@@ -175,6 +175,6 @@ export function drawHintBar(ctx, state) {
   ctx.textBaseline = 'middle';
   const hint = state.toast
     ? state.toast.text
-    : 'Klik stasiun untuk jalan & masak • 1–3 pilih pesanan • Z–N ambil bahan • Q buang • B buku resep • P jeda';
+    : 'Klik stasiun untuk jalan & masak • 1–3 pilih pesanan • Z–N ambil bahan • Q buang • K buku resep • P jeda';
   ctx.fillText(hint, b.w / 2, b.y + 8);
 }

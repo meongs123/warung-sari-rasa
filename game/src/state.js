@@ -47,6 +47,7 @@ export function createGameState(seed = 7) {
     toast: null, // {text, t} one-line message
     toastT: 0,
     bookOpen: false,
+    bookFrom: 'playing', // mode to return to when the recipe book closes
     timeScale: 1,
   };
 }

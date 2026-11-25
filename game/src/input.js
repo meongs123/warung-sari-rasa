@@ -1,8 +1,8 @@
 // input.js — Input: keyboard + mouse, click-to-walk, key map.
 // Click-a-station is PRIMARY (click station/bowl/ticket/plate = walk there +
 // auto-interact on arrival). WASD/arrows are dropped (Revision 1); cheap
-// shortcuts stay (1-3 tickets, Z-N bowls, E/Space, Q, B, P/Esc, M).
-// single-key shortcuts remain: 1–3 tickets, Z–N bowls, Q trash, B book,
+// shortcuts stay (1-3 tickets, Z-N bowls, E/Space, Q, K, P/Esc, M).
+// single-key shortcuts remain: 1–3 tickets, Z–N bowls, Q trash, K book,
 // P/Esc pause, M mute, E/Space interact with the faced station.
 
 import { ZONES, inRect } from './zones.js';
@@ -97,15 +97,17 @@ export function hitTestClick(x, y) {
 }
 
 // Map a pressed key to an action descriptor, or null.
+// Book is 'k' (not 'b': 'b' is the Sayur bowl key — bowlKeys is checked
+// first, so a book on 'b' would be dead code).
 export function keyAction(key) {
   if (key === '1' || key === '2' || key === '3') {
     return { type: 'ticket', slot: Number(key) - 1 };
   }
+  if (key === 'k') return { type: 'book' };
   const bowlKeys = ['z', 'x', 'c', 'v', 'b', 'n'];
   const bi = bowlKeys.indexOf(key);
   if (bi >= 0) return { type: 'bowl', index: bi };
   if (key === 'q') return { type: 'trash' };
-  if (key === 'b') return { type: 'book' };
   if (key === 'p' || key === 'escape') return { type: 'pause' };
   if (key === 'm') return { type: 'mute' };
   if (key === 'e' || key === ' ') return { type: 'interact' };

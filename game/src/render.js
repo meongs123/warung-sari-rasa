@@ -441,7 +441,7 @@ function drawTitle(ctx, state) {
   text(ctx, 'WARUNG SARI RASA', 640, 220, `bold 64px ${FONT}`, PALETTE.cream);
   text(ctx, '— Dapur Kilat —', 640, 280, `italic bold 28px ${FONT}`, PALETTE.fire);
   text(ctx, 'Masak cepat, antar tepat. Satu shift, tiga menit, pesanan tak berhenti.', 640, 330, `20px ${FONT}`, '#FFF3D6');
-  text(ctx, 'Klik stasiun untuk jalan & masak • 1–3 pilih pesanan • B buku resep', 640, 362, `16px ${FONT}`, '#D8CDB8');
+  text(ctx, 'Klik stasiun untuk jalan & masak • 1–3 pilih pesanan • K buku resep', 640, 362, `16px ${FONT}`, '#D8CDB8');
   // Play button.
   ctx.fillStyle = PALETTE.terracotta;
   roundRect(ctx, 540, 400, 200, 56, 12);
@@ -455,7 +455,7 @@ function drawPaused(ctx, state) {
   ctx.fillStyle = 'rgba(46,31,20,0.6)';
   ctx.fillRect(0, 0, 1280, 720);
   text(ctx, 'JEDA', 640, 320, `bold 56px ${FONT}`, PALETTE.cream);
-  text(ctx, 'P / Esc untuk lanjut • B buku resep • M suara', 640, 380, `18px ${FONT}`, '#FFF3D6');
+  text(ctx, 'P / Esc untuk lanjut • K buku resep • M suara', 640, 380, `18px ${FONT}`, '#FFF3D6');
 }
 
 function drawBook(ctx, state) {
@@ -481,7 +481,7 @@ function drawBook(ctx, state) {
     text(ctx, e.steps.join(' → '), bx + 110, y + 62, `14px ${FONT}`, PALETTE.teakDark, 'left');
     if (e.finisher) text(ctx, `+ ${e.finisher}`, bx + 110, y + 84, `13px ${FONT}`, '#7A6A55', 'left');
   });
-  text(ctx, 'B / Esc untuk tutup — timer dijeda', 640, by + bh - 24, `14px ${FONT}`, '#7A6A55');
+  text(ctx, 'K / Esc untuk tutup — timer dijeda', 640, by + bh - 24, `14px ${FONT}`, '#7A6A55');
 }
 
 function drawSummary(ctx, state) {
