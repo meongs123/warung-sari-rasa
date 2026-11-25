@@ -231,6 +231,15 @@ function doServeWindowPlate(slot) {
   advancePrompt('serve');
 }
 
+// Ring the bell (the brass bell on the counter): serve the first finished
+// plate sitting at the window. If no plate is at the window yet, the bell
+// has nothing to serve — the toast tells the player to bring a plate.
+function doServeBell() {
+  const slot = state.windowPlates.findIndex((p) => p);
+  if (slot < 0) return showToast('Bawa piring jadi ke sini');
+  doServeWindowPlate(slot);
+}
+
 function doBin() {
   const item = state.cook.hands.find(Boolean);
   if (item) {
@@ -357,6 +366,12 @@ function handleClickAction(action) {
   } else if (action.type === 'windowPlate') {
     stand = ZONES.stand.window;
     run = () => doServeWindowPlate(action.index);
+  } else if (action.type === 'bell') {
+    // Ring the bell: serve the first finished plate at the window.
+    // The cook walks to the window stand point first (same as a
+    // window-plate click), so the bell works from anywhere on the floor.
+    stand = ZONES.stand.window;
+    run = () => doServeBell();
   } else if (action.type === 'station') {
     const s = action.station;
     if (s === 'stove') { stand = ZONES.stand.stove; run = () => doStove(); }

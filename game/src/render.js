@@ -14,7 +14,7 @@ import { createCook, syncCook, createCustomers, syncCustomers } from './drawchar
 import { buildHUD, syncHUD } from './hud.js';
 import { recipeBookEntries } from './recipebook.js';
 import { burnerProgress } from './stove.js';
-import { requiredComponents } from './plating.js';
+import { requiredComponents, plateTargetDish } from './plating.js';
 import { gCircle, gEllipse, gRect, gRoundRect, gTriangle, gLine, gArc, gCircleStroke } from './gfx.js';
 
 const FONT = '"Trebuchet MS", Verdana, sans-serif';
@@ -154,6 +154,18 @@ export function buildScene(scene, state) {
     world.add(status);
     burnerBars.push({ bg, fill, status });
   }
+  // READY tags for the window plates (2 Texts, one per slot). Created once
+  // here, positioned + shown/hidden in syncScene (property sets only).
+  // Bold green, 14 px, white stroke so the tag reads at judge scale (60%).
+  const readyTags = [];
+  for (let i = 0; i < 2; i++) {
+    const t = scene.add.text(0, 0, 'READY', { fontFamily: FONT, fontSize: '14px', fontStyle: 'bold', color: '#2E7D32' });
+    t.setOrigin(0.5, 0.5);
+    t.setStroke('#FFFFFF', 2);
+    t.setVisible(false);
+    world.add(t);
+    readyTags.push(t);
+  }
   // Cook + customers.
   const cook = createCook(scene);
   world.add(cook.container);
@@ -190,7 +202,7 @@ export function buildScene(scene, state) {
   const hud = buildHUD(scene);
   const overlays = buildOverlays(scene);
   return {
-    world, bgG, dynG, burnerBars, cook, customers, particlePool, floatPool,
+    world, bgG, dynG, burnerBars, readyTags, cook, customers, particlePool, floatPool,
     hud, overlays, labels,
     lastDyn: {
       ticketIds: [-1, -1, -1], burnerItems: [false, false],
@@ -308,14 +320,40 @@ function redrawDynamic(view, state) {
       if (plate.finisher) {
         gCircle(g, cx + 22, cy - 12, 5, plate.finisher === 'kecap' ? '#3A1F10' : plate.finisher === 'sambal' ? '#C0392B' : '#7A5A2B');
       }
+      // Step dots under the plate (design §5): filled = steps done,
+      // outline = steps left. Total = the target dish's components +
+      // its finisher (if any); the picky skip is honoured when the plate
+      // is being built for a picky ticket. Dots sit below the plate —
+      // the finisher bottles stand directly above it.
+      const dish = plateTargetDish(state, plate);
+      if (dish) {
+        const ticket = state.tickets.find((t) => t && t.dish === dish);
+        const need = ticket ? requiredComponents(ticket) : null;
+        const total = need ? need.items.length + (need.finisher ? 1 : 0)
+          : RECIPES[dish].plate.length + (RECIPES[dish].finisher ? 1 : 0);
+        const filled = plate.items.length + (plate.finisher ? 1 : 0);
+        if (total > 0) {
+          const dotY = z.y + z.h + 12;
+          const gap = 15;
+          const x0 = cx - ((total - 1) * gap) / 2;
+          for (let d = 0; d < total; d++) {
+            const dx = x0 + d * gap;
+            if (d < filled) gCircle(g, dx, dotY, 6, '#FFF8E7');
+            else gCircleStroke(g, dx, dotY, 6, '#FFF8E7', 2);
+          }
+        }
+      }
     }
   });
-  // Window plates (READY) + a gold diamond marker above each.
+  // Window plates (READY): a soft green glow under the dish + the gold
+  // diamond marker above it. The "READY" text tag itself is a Text object
+  // (view.readyTags), positioned in syncScene — Graphics cannot draw text.
   state.windowPlates.forEach((wp, i) => {
     if (!wp) return;
     const z = ZONES.windowPlates[i];
     const cx = z.x + z.w / 2;
     const cy = z.y + z.h / 2;
+    gEllipse(g, cx, cy + 6, 64, 34, 'rgba(78,122,58,0.4)');
     drawDish(g, wp.dish, cx, cy + 4, 26);
     gTriangle(g, cx - 8, cy - 24, cx, cy - 34, cx + 8, cy - 24, PALETTE.gold);
     gTriangle(g, cx - 8, cy - 24, cx, cy - 14, cx + 8, cy - 24, PALETTE.gold);
@@ -414,6 +452,16 @@ export function syncScene(view, state, dt) {
     } else {
       bar.status.setText('');
     }
+  });
+  // READY tags above the window plates (property sets only). A tag shows
+  // exactly when its slot holds a finished plate; its position follows
+  // the plate zone, so it survives the shot-4 camera zoom (world child).
+  state.windowPlates.forEach((wp, i) => {
+    const tag = view.readyTags[i];
+    if (!wp) { tag.setVisible(false); return; }
+    const z = ZONES.windowPlates[i];
+    tag.setVisible(true);
+    tag.setPosition(z.x + z.w / 2, z.y - 18);
   });
   // Cook + customers (pose math lives in drawcharacter.js).
   syncCook(view.cook, state, state.time);

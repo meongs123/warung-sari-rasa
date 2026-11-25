@@ -225,7 +225,10 @@ export function stageSecondAngle(state) {
   state.cook.animT = 0.3;
   state.cook.hands = [null, null];
   // Close-up camera on the grill + plating area (x 40-940, y 200-340).
-  state.camera = { x: 490, y: 270, zoom: 1.35 };
+  // Zoom 1.25 (not 1.35): at 1.35x the third bubble and the SAMPAH bin were
+  // sliced in half at the frame edge. At 1.25x, centre x=540, the visible
+  // x-range is ~28-1052, so all three bubbles + the bin fit whole.
+  state.camera = { x: 540, y: 270, zoom: 1.25 };
   return state;
 }
 
