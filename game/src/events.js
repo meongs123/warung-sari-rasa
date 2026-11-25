@@ -30,5 +30,8 @@ export function maybeStartEvent(state, t) {
   state.tickets[free] = ticket;
   ev.spawned = true;
   ev.slot = free;
+  // F1: auto-select the Kumis ticket so serving the matching dish clears the
+  // event even if the player never clicks a card (the natural play pattern).
+  state.selectedTicket = free;
   return true;
 }

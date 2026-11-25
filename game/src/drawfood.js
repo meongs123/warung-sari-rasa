@@ -42,12 +42,15 @@ export function drawIngredient(g, kind, prep, x, y, r) {
       gLine(g, x - r * 0.2, y + r * 0.1, x + r * 0.15, y + r * 0.1, '#8A3A22', 2);
       gLine(g, x - r * 0.2, y + r * 0.28, x + r * 0.15, y + r * 0.28, '#8A3A22', 2);
     } else {
-
-      gEllipse(g, x - r * 0.15, y - r * 0.2, r * 0.55, r * 0.45, '#E07856');
-      gEllipse(g, x - r * 0.3, y - r * 0.35, r * 0.22, r * 0.18, '#F09A7A');
-      gLine(g, x + r * 0.35, y - r * 0.1, x + r * 0.95, y + r * 0.45, '#F5E6C8', Math.max(3, r * 0.28));
-      gCircle(g, x + r * 0.98, y + r * 0.48, r * 0.2, '#FFF8E7');
-      gCircle(g, x + r * 0.8, y + r * 0.3, r * 0.16, '#FFF8E7');
+      // L4: bigger meat + dark grill marks + BROWN bone (was near-white on
+      // light beige, invisible at larder size and read as a tomato).
+      gEllipse(g, x - r * 0.15, y - r * 0.2, r * 0.62, r * 0.5, '#E07856');
+      gEllipse(g, x - r * 0.3, y - r * 0.35, r * 0.24, r * 0.2, '#F09A7A');
+      gLine(g, x - r * 0.35, y - r * 0.1, x + r * 0.05, y - r * 0.3, '#8A3A22', 2);
+      gLine(g, x - r * 0.3, y + r * 0.1, x + r * 0.1, y - r * 0.1, '#8A3A22', 2);
+      gLine(g, x + r * 0.35, y - r * 0.1, x + r * 0.95, y + r * 0.45, '#8A5A2B', Math.max(3, r * 0.3));
+      gCircle(g, x + r * 0.98, y + r * 0.48, r * 0.22, '#FFF8E7');
+      gCircle(g, x + r * 0.8, y + r * 0.3, r * 0.18, '#FFF8E7');
     }
   } else if (kind === 'sayur') {
     if (prep === 'chopped') {

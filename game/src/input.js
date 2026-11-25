@@ -68,6 +68,13 @@ export function hitTestClick(x, y) {
   }
   if (inRect(x, y, ZONES.bin)) return { type: 'bin' };
   if (inRect(x, y, ZONES.bell)) return { type: 'bell' };
+  // Docket click opens the recipe book (the "Resep [K] ↗" link on the ticket).
+  if (inRect(x, y, ZONES.docket)) return { type: 'book' };
+  // F7: static UI chrome is not a walk target — top bar, status + bottom
+  // bars, and the MENU HARI INI board are display-only, so a click on them
+  // must not send the cook walking. (Menu board is now the compacted y 340-482.)
+  if (y < 56 || y >= 640) return { type: 'none' };
+  if (inRect(x, y, { x: 940, y: 340, w: 300, h: 142 })) return { type: 'none' };
   if (inRect(x, y, ZONES.windowPlates[0])) return { type: 'windowPlate', index: 0 };
   if (inRect(x, y, ZONES.windowPlates[1])) return { type: 'windowPlate', index: 1 };
   const sc = ZONES.stationClick;

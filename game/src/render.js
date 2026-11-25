@@ -55,7 +55,9 @@ function drawBackground(g) {
   gRect(g, 488, 406, 14, 8, PALETTE.teakDark);
   gRoundRect(g, 580, 340, 340, 220, 8, '#A9713F');
   gRect(g, 590, 350, 320, 26, '#C8C8C8');
-  gRoundRect(g, 940, 340, 300, 220, 8, '#3A2A1A');
+  // UI reorg: menu board compacted to y 340-482 so the COOK'S DOCKET fits
+  // below it (y 492-560) in the same right column — same grid as the reference.
+  gRoundRect(g, 940, 340, 300, 142, 8, '#3A2A1A');
 
   gRect(g, 16, 560, 1248, 80, '#C98A5A');
   g.lineStyle(2, 0x7a4a2b, 0.35);
@@ -136,19 +138,19 @@ export function buildScene(scene, state) {
   addLabel('SPACE = POTONG!', 390, 505, 16, PALETTE.teakDark);
 
   const rakitHeader = addLabel('RAKIT · 0/0', 750, 358, 18, PALETTE.teakDark);
-  addLabel('MENU HARI INI', 1090, 362, 18, PALETTE.cream);
+  addLabel('MENU HARI INI', 1090, 358, 17, PALETTE.cream);
   addLabel('ENTER = SAJIKAN', 1120, 306, 16, PALETTE.cream);
-  addLabel('BUKA 08.00 – 21.00', 1090, 540, 12, '#B9A98A', false);
   labels.forEach((t) => world.add(t));
 
   const menuG = scene.add.graphics();
   const menuTexts = [];
   ['nasi', 'mie', 'sate', 'teh'].forEach((id, i) => {
-    const y = 400 + i * 34;
-    drawDish(menuG, id, 972, y, 14);
-    const nm = scene.add.text(992, y, RECIPES[id].name, { fontFamily: FONT, fontSize: '16px', fontStyle: 'bold', color: '#FFF3D6' });
+    // Compacted rows (26px apart, icon r 12) to fit the docket below.
+    const y = 384 + i * 26;
+    drawDish(menuG, id, 972, y, 12);
+    const nm = scene.add.text(992, y, RECIPES[id].name, { fontFamily: FONT, fontSize: '15px', fontStyle: 'bold', color: '#FFF3D6' });
     nm.setOrigin(0, 0.5);
-    const pr = scene.add.text(1224, y, `Rp ${RECIPES[id].price}`, { fontFamily: FONT, fontSize: '16px', fontStyle: 'bold', color: '#F5C542' });
+    const pr = scene.add.text(1224, y, `Rp ${RECIPES[id].price}`, { fontFamily: FONT, fontSize: '15px', fontStyle: 'bold', color: '#F5C542' });
     pr.setOrigin(1, 0.5);
     world.add(nm);
     world.add(pr);
@@ -208,6 +210,9 @@ export function buildScene(scene, state) {
     t.setOrigin(0.5, 0.5);
     t.setStroke('#FFFFFF', 2);
     t.setVisible(false);
+    // Depth 16: above the customer bubbles (depth 15) so the tag is never
+    // painted over by an order card (H1 — the tag sits at the card's bottom edge).
+    t.setDepth(16);
     world.add(t);
     readyTags.push(t);
   }
@@ -302,6 +307,13 @@ function buildDialogue(scene) {
   const portrait = scene.add.circle(360, 540, 24, 0xf2c14e);
   portrait.setStrokeStyle(2, 0x5c3520, 1);
   c.add(portrait);
+  // L3: a simple face on the portrait (was a plain coloured circle).
+  const faceL = scene.add.ellipse(351, 536, 4, 5, 0x2e1f14);
+  const faceR = scene.add.ellipse(369, 536, 4, 5, 0x2e1f14);
+  const faceSmile = scene.add.arc(360, 546, 9, 15, 165, false, 0x2e1f14);
+  c.add(faceL);
+  c.add(faceR);
+  c.add(faceSmile);
   const name = scene.add.text(396, 508, '', { fontFamily: FONT, fontSize: '16px', fontStyle: 'bold', color: '#2E1F14' });
   name.setOrigin(0, 0.5);
   c.add(name);
@@ -516,7 +528,9 @@ export function syncScene(view, state, dt) {
     if (!wp) { tag.setVisible(false); return; }
     const z = ZONES.windowPlates[i];
     tag.setVisible(true);
-    tag.setPosition(z.x + z.w / 2, z.y - 18);
+    // y - 10 sits just below the order card's bottom edge (card ends ~y142)
+    // in the clear gap above the counter, so the tag never hides behind a card.
+    tag.setPosition(z.x + z.w / 2, z.y - 10);
   });
 
   const chopItem = nextChoppable(state) || state.cook.hands.find((h) => h && h.prep === 'chopped');

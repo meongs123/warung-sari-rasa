@@ -30,6 +30,29 @@ function nextStep(state) {
   return `Lagi pegang: ${held} · 1. Ambil ${ING_NAME[first.kind]} (klik RAK BAHAN)`;
 }
 
+// COOK'S DOCKET — the dish being made + the next step, in plain words.
+// (Same state as nextStep, but without the "Lagi pegang" prefix, so the
+// panel reads as a ticket: dish on one line, action on the next.)
+function docketInfo(state) {
+  const ticket = state.tickets[state.selectedTicket] || state.tickets.find(Boolean);
+  if (!ticket) return { dish: '—', step: 'Tunggu pesanan masuk.', num: '' };
+  const r = RECIPES[ticket.dish];
+  const hands = state.cook.hands.filter(Boolean);
+  const raw = hands.find((h) => h.prep === 'raw');
+  let step;
+  if (state.windowPlates.some(Boolean)) step = 'Piring siap — klik BEL untuk sajikan!';
+  else if (state.cook.plate) step = 'Bawa piring ke jendela saji!';
+  else if (state.plates.findIndex((p) => p.done) >= 0) step = 'Piring jadi! Klik RAKIT untuk ambil.';
+  else if (raw) {
+    const ing = ING_NAME[raw.kind];
+    step = (raw.kind === 'telur' || raw.kind === 'sayur' || raw.kind === 'ayam')
+      ? `Potong ${ing} di TALENAN (SPACE)`
+      : `Masak ${ing} di KOMPOR`;
+  } else if (hands.find((h) => h.prep !== 'raw')) step = 'Rakit di meja (klik RAKIT)!';
+  else step = `Ambil ${ING_NAME[r.plate[0].kind]} di RAK BAHAN`;
+  return { dish: r.name, step, num: `Nº ${String(ticket.id + 1).padStart(2, '0')}` };
+}
+
 export function buildHUD(scene) {
   const topBarG = scene.add.graphics();
   topBarG.fillStyle(0x5c3520, 1);
@@ -46,9 +69,11 @@ export function buildHUD(scene) {
   moodBg.setOrigin(0, 0.5);
   const moodFill = scene.add.rectangle(210, 24, 100, 10, 0x4e7a3a);
   moodFill.setOrigin(0, 0.5);
-  const shiftText = scene.add.text(330, 20, 'SHIFT 1', { fontFamily: FONT, fontSize: '14px', fontStyle: 'bold', color: '#FFF3D6' });
+  // SERVICE WAVE: the shift runs in 3 waves (60s each); the label is derived
+  // from elapsed time only — no phase mechanic, just the wave the shift is in.
+  const shiftText = scene.add.text(330, 20, 'GELOMBANG 1/3', { fontFamily: FONT, fontSize: '13px', fontStyle: 'bold', color: '#FFF3D6' });
   shiftText.setOrigin(0, 0.5);
-  const shiftSub = scene.add.text(330, 40, '3 menit', { fontFamily: FONT, fontSize: '11px', color: '#B9A98A' });
+  const shiftSub = scene.add.text(330, 40, 'Awal Shift', { fontFamily: FONT, fontSize: '11px', color: '#B9A98A' });
   shiftSub.setOrigin(0, 0.5);
   const timerBg = scene.add.rectangle(440, 31, 400, 26, 0x4a2e18);
   timerBg.setOrigin(0, 0.5);
@@ -113,11 +138,33 @@ export function buildHUD(scene) {
     t.setOrigin(0, 0.5);
     trayTexts.push(t);
   }
+  // COOK'S DOCKET (x 940-1240, y 492-560): the dish being made + the next
+  // step in plain words + the recipe link. Persistent, always visible —
+  // the same info as the status line, but as a proper ticket panel.
+  const docketG = scene.add.graphics();
+  docketG.fillStyle(0xfff3d6, 1);
+  docketG.fillRoundedRect(940, 492, 300, 68, 8);
+  docketG.lineStyle(2, 0x5c3520, 1);
+  docketG.strokeRoundedRect(940, 492, 300, 68, 8);
+  docketG.fillStyle(0x4e7a3a, 1);
+  docketG.fillRoundedRect(940, 492, 300, 20, { tl: 8, tr: 8, bl: 0, br: 0 });
+  const docketLabel = scene.add.text(956, 502, 'DOCKET', { fontFamily: FONT, fontSize: '11px', fontStyle: 'bold', color: '#FFF3D6' });
+  docketLabel.setOrigin(0, 0.5);
+  const docketNum = scene.add.text(1224, 502, '', { fontFamily: FONT, fontSize: '11px', fontStyle: 'bold', color: '#F5C542' });
+  docketNum.setOrigin(1, 0.5);
+  const docketDish = scene.add.text(956, 526, '—', { fontFamily: FONT, fontSize: '15px', fontStyle: 'bold', color: '#2E1F14' });
+  docketDish.setOrigin(0, 0.5);
+  const docketRecipe = scene.add.text(1224, 526, 'Resep [K] ↗', { fontFamily: FONT, fontSize: '12px', fontStyle: 'bold', color: '#2E7D32' });
+  docketRecipe.setOrigin(1, 0.5);
+  const docketStep = scene.add.text(956, 546, 'Tunggu pesanan masuk.', { fontFamily: FONT, fontSize: '13px', color: '#5C4A33' });
+  docketStep.setOrigin(0, 0.5);
   return {
     timerFill, timerText, coinsText, comboText, heartsText, streakText, bestText, rushText,
     moodFill, bannerG, bannerText, statusText, trayG, trayTexts,
+    shiftText, shiftSub, docketDish, docketStep, docketNum,
     lastTimer: '', lastCoins: -1, lastCombo: '', lastHearts: '', lastStreak: '', lastBest: -1,
     lastMood: -1, lastEvent: null, lastBatch: '', lastStatus: '', lastHandsKey: '',
+    lastWave: '', lastDocket: '',
   };
 }
 
@@ -183,6 +230,24 @@ export function syncHUD(hud, state) {
   if (status !== hud.lastStatus) {
     hud.lastStatus = status;
     hud.statusText.setText(status);
+  }
+  // SERVICE WAVE (label only): 3 waves of 60s across the 180s shift.
+  const elapsed = state.shiftLength - left;
+  const wave = Math.min(3, Math.floor(elapsed / 60) + 1);
+  const waveStr = `GELOMBANG ${wave}/3`;
+  if (waveStr !== hud.lastWave) {
+    hud.lastWave = waveStr;
+    hud.shiftText.setText(waveStr);
+    hud.shiftSub.setText(['', 'Awal Shift', 'Tengah Shift', 'Akhir Shift'][wave]);
+  }
+  // COOK'S DOCKET: dish + next step + ticket number, updated on change.
+  const dk = docketInfo(state);
+  const dkKey = `${dk.dish}|${dk.step}|${dk.num}`;
+  if (dkKey !== hud.lastDocket) {
+    hud.lastDocket = dkKey;
+    hud.docketDish.setText(dk.dish);
+    hud.docketStep.setText(dk.step);
+    hud.docketNum.setText(dk.num);
   }
   const hk = state.cook.hands.map((h) => (h ? `${h.kind}:${h.prep}` : '-')).join(',');
   if (hk !== hud.lastHandsKey) {
